@@ -129,24 +129,27 @@
 <div class="container" style="max-width: 950px; margin-top: 44px;">
 
     <!-- 🌟 FLASH POPUP -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        <script>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <script>
             document.addEventListener("DOMContentLoaded", function () {
                 {% for category, message in messages %}
                 Swal.fire({
+                    position: "top",
                     icon: "{{ 'success' if category == 'success' else 'warning' }}",
-                    title: "{{ 'Success' if category=='success' else 'Alert' }}",
+                    title: "{{ 'Success' if category == 'success' else 'Alert' }}",
                     html: "{{ message }}",
-                    timer: 5000,
+                    timer: 4000,
                     timerProgressBar: true,
-                    showConfirmButton: false
+                    showConfirmButton: false,
+                    toast: true
                 });
                 {% endfor %}
             });
-        </script>
-    {% endif %}
-    {% endwith %}
+            </script>
+            {% endif %}
+            {% endwith %}
+
 
 
     <!-- 🌟 TOP TITLE -->
@@ -164,10 +167,10 @@
                 <label for="name">Name</label>
             </div>
 
-            <!-- EMAIL -->
+            <!-- location -->
             <div class="form-floating mb-3">
-                <input type="email" class="form-control" id="email" name="email" placeholder="" value="{{ email or '' }}">
-                <label for="email">Email</label>
+                <input type="text" class="form-control" id="location" name="location" placeholder="" value="{{ location or '' }}">
+                <label for="location">Location</label>
             </div>
 
             <!-- PHONE -->
@@ -337,29 +340,38 @@
 <!-- JAVASCRIPT -->
 <script>
 function validateForm() {
+
+    // Remove email from required fields
     const fields = {
         name: "Name",
-        email: "Email",
+        location: "Location",
         phone: "Phone",
         event_date: "Date of Event",
         service: "Service Required"
     };
 
-    document.querySelectorAll(".error-field").forEach(e => e.classList.remove("error-field"));
+    document.querySelectorAll(".error-field").forEach(e =>
+        e.classList.remove("error-field")
+    );
 
     for (let id in fields) {
         let el = document.getElementById(id);
+        if (!el) continue;
+
         let value = el.value.trim();
 
         if (!value || value === "") {
             el.classList.add("error-field");
+
             Swal.fire({
                 icon: 'warning',
+                position: 'top',       // 🔥 popup to TOP of window
                 title: "Missing Field",
                 text: `⚠ Please fill "${fields[id]}"`,
-                timer: 3500,
+                timer: 3000,
                 showConfirmButton: false
             });
+
             el.focus();
             return false;
         }
@@ -368,5 +380,6 @@ function validateForm() {
     return true;
 }
 </script>
+
 </body>
 </html>
