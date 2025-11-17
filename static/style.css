@@ -1,0 +1,45 @@
+/* ===== FORM HEADING ===== */
+.title-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;  /* Center horizontally */
+    margin-top: 10px;
+}
+
+.section-title {
+    display: inline-block;
+
+    /* Background + Padding */
+    background: #ffe6f2;
+    padding: 12px 28px;
+    border-radius: 14px;
+
+    /* Font Style — Romantic */
+    font-family: 'Great Vibes', cursive;
+    font-size: 2.1rem;
+    font-weight: 600;
+    color: #d63384;
+
+    /* Glow + Shadow */
+    text-shadow: 0 0 12px rgba(255, 0, 150, 0.5);
+    box-shadow: 0 0 16px rgba(255, 0, 150, 0.5);
+
+    /* Animation */
+    animation: pulseHeart 1.8s ease-in-out infinite;
+}
+
+/* 💗 Smooth Pulsing Heart Glow */
+@keyframes pulseHeart {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 14px rgba(255, 0, 150, 0.6);
+    }
+    50% {
+        transform: scale(1.12);
+        box-shadow: 0 0 32px rgba(255, 0, 150, 1);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 14px rgba(255, 0, 150, 0.6);
+    }
+}
