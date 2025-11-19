@@ -1,37 +1,49 @@
+# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, g, session
 import sqlite3
 from pathlib import Path
+import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import os
 
 # ---------------- App + DB ----------------
-BASE = Path(__file__).parent
+BASE = Path(__file__).resolve().parent
 DB_PATH = BASE / "instance" / "bookings.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
+# Use environment SECRET_KEY in production
+app.secret_key = os.getenv("SECRET_KEY", "change_this_secret_key")
+
+# App DB config
 app.config["DATABASE"] = str(DB_PATH)
-app.secret_key = "change_this_secret_key"  # change in production
 
-ADMIN_USER = "admin"
-ADMIN_PASS = "admin123"
+# Admin credentials (override via environment in production)
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
+
+# ---------------- Database helpers ----------------
 def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(app.config["DATABASE"], detect_types=sqlite3.PARSE_DECLTYPES)
         g.db.row_factory = sqlite3.Row
     return g.db
 
+
 @app.teardown_appcontext
 def close_db(exception=None):
     db = g.pop("db", None)
-    if db:
+    if db is not None:
         db.close()
+
 
 def create_tables():
     db = get_db()
-    db.execute("""
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS bookings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -44,104 +56,144 @@ def create_tables():
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+        """
+    )
     db.commit()
 
+
+# Ensure tables exist on startup
 with app.app_context():
     create_tables()
 
-# ---------------- Email helper ----------------
-def send_email_notification(name, location, phone, event_date, service, extras, notes, customer_email=None):
+
+# ---------------- Notifications ----------------
+def send_notifications(name, location, phone, event_date, service, extras, notes, customer_email=None):
     """
-    Sends email to admin list and optionally to customer_email (if provided).
-    Uses SMTP SSL (Gmail). Replace credentials below.
-    If SMTP fails on your host (e.g. Render), use a transactional email API (Brevo/SendGrid).
+    Send email (Gmail SMTP) to admin and an optional WhatsApp message via UltraMsg.
+    All credentials must be in environment variables:
+      SMTP_USER, SMTP_PASS
+      W_TOKEN, W_INSTANCE  (for UltraMsg)
     """
-    SMTP_USER = "smtshan007@gmail.com"
-    SMTP_PASSWORD = "bijt rril icdh hsqp"  # <<--- Replace with App Password
+    SMTP_USER = os.getenv("SMTP_USER")
+    SMTP_PASS = os.getenv("SMTP_PASS")
 
-    admin_recipients = ["Jagadhaeventplanner@gmail.com", "smtshan007@gmail.com"]
-    recipients = admin_recipients.copy()
-    if customer_email:
-        recipients.append(customer_email)
-
-    subject = f"Booking Confirmation / New Booking – {name}"
-
-    html_message = f"""
-    <html>
-    <body style="font-family: Arial; line-height: 1.6;">
-      <h2>🎉 New Booking / Confirmation</h2>
-      <table style="width:100%; border-collapse: collapse;">
-        <tr><td><b>Name</b></td><td>{name}</td></tr>
-        <tr><td><b>Location</b></td><td>{location}</td></tr>
-        <tr><td><b>Phone</b></td><td>{phone}</td></tr>
-        <tr><td><b>Event Date</b></td><td>{event_date}</td></tr>
-        <tr><td><b>Service</b></td><td>{service}</td></tr>
-        <tr><td><b>Extras</b></td><td>{extras}</td></tr>
-        <tr><td><b>Notes</b></td><td>{notes}</td></tr>
-      </table>
-      <p>❤️ Thank you for choosing JAGADHA A to Z Event Management!</p>
-    </body>
-    </html>
-    """
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = SMTP_USER
-    # we will set To header per-recipient when sending
-
-    msg.attach(MIMEText(html_message, "html"))
-
+    # 1) Send email to admin (and optionally to customer_email if provided)
     try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"New Booking - {name}"
+        msg["From"] = SMTP_USER
+        # Send to admin and optionally to customer
+        recipients = [SMTP_USER]
+        if customer_email:
+            recipients.append(customer_email)
+        msg["To"] = ", ".join(recipients)
+
+        html = f"""
+        <html>
+        <body>
+            <h2>New Booking Received</h2>
+            <p><b>Name:</b> {name}</p>
+            <p><b>Phone:</b> {phone}</p>
+            <p><b>Event Date:</b> {event_date}</p>
+            <p><b>Service:</b> {service}</p>
+            <p><b>Extras:</b> {extras}</p>
+            <p><b>Location:</b> {location}</p>
+            <p><b>Notes:</b> {notes}</p>
+        </body>
+        </html>
+        """
+        msg.attach(MIMEText(html, "html"))
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            for r in recipients:
-                msg["To"] = r
-                server.sendmail(SMTP_USER, r, msg.as_string())
-        app.logger.info("Email(s) sent to: %s", ", ".join(recipients))
-    except Exception as ex:
-        # log error but don't crash the request flow
-        app.logger.error("Email sending failed: %s", ex)
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_USER, recipients, msg.as_string())
+
+        app.logger.info("Email notification sent ✔")
+
+    except Exception as e:
+        app.logger.exception("EMAIL ERROR: %s", e)
+
+    # 2) Send WhatsApp notification via UltraMsg (if token+instance present)
+    try:
+        api_token = os.getenv("fmkdtkcsdxc8sykr")
+        instance_id = os.getenv("instance150871")
+
+        if api_token and instance_id and phone:
+            url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+
+            # UltraMsg expects the 'to' in full international format e.g. +919876543210
+            # Make sure `phone` is in that format or adjust before calling.
+            body_text = (
+                f"Hello {name} 🌸\n\n"
+                f"Your booking with *JAGADHA A to Z Event Management* is confirmed!\n\n"
+                f"📅 Event Date: {event_date}\n"
+                f"🎯 Service: {service}\n"
+                f"📍 Location: {location}\n"
+                f"✨ Extras: {extras}\n\n"
+                f"Thank you for choosing us ❤️"
+            )
+
+            payload = {
+                "token": api_token,
+                "to": phone,
+                "body": body_text
+            }
+
+            r = requests.post(url, data=payload, timeout=15)
+            app.logger.info("WhatsApp response: %s", r.text)
+        else:
+            app.logger.info("WHATSAPP SKIPPED: token/instance/phone not set")
+
+    except Exception as e:
+        app.logger.exception("WHATSAPP ERROR: %s", e)
+
+
+# ---------------- Utility render helper ----------------
+def render_with_values(message, category="danger", **kwargs):
+    flash(message, category)
+    return render_template("book.html", **kwargs)
+
 
 # ---------------- Routes ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
-def render_with_values(message, category="danger", **kwargs):
-    flash(message, category)
-    return render_template("book.html", **kwargs)
-
 
 @app.route("/book", methods=["GET", "POST"])
 def book():
     if request.method == "POST":
-
-        name = request.form["name"].strip()
-        location = request.form["location"].strip()
-        phone = request.form["phone"].strip()
-        event_date = request.form["event_date"].strip()
-        service = request.form["service"].strip()
+        name = request.form.get("name", "").strip()
+        location = request.form.get("location", "").strip()
+        phone = request.form.get("phone", "").strip()
+        event_date = request.form.get("event_date", "").strip()
+        service = request.form.get("service", "").strip()
         notes = request.form.get("notes", "").strip()
+        customer_email = request.form.get("customer_email", "").strip() or None
 
         extras_list = request.form.getlist("extras")
         extras = ", ".join(extras_list)
 
         # Required validation
         if not name:
-            return render_with_values("⚠ Please fill Name!")
+            return render_with_values("⚠ Please fill Name!", name=name, location=location, phone=phone,
+                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
 
         if not location:
-            return render_with_values("⚠ Please fill Location!")
+            return render_with_values("⚠ Please fill Location!", name=name, location=location, phone=phone,
+                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
 
         if not phone:
-            return render_with_values("⚠ Please fill Phone!")
+            return render_with_values("⚠ Please fill Phone!", name=name, location=location, phone=phone,
+                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
 
         if not event_date:
-            return render_with_values("⚠ Please fill Date of Event!")
+            return render_with_values("⚠ Please fill Date of Event!", name=name, location=location, phone=phone,
+                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
 
         if not service:
-            return render_with_values("⚠ Please select Service!")
+            return render_with_values("⚠ Please select Service!", name=name, location=location, phone=phone,
+                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
 
         if len(extras_list) == 0:
             return render_with_values(
@@ -155,18 +207,26 @@ def book():
                 selected_extras=extras_list
             )
 
-        # SAVE TO DB (EMAIL REMOVED)
+        # SAVE TO DB
         db = get_db()
-        db.execute("""
-            INSERT INTO bookings (name, location, phone, event_date, service, extras, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, location, phone, event_date, service, extras, notes))
+        db.execute(
+            """
+            INSERT INTO bookings (name, location, phone, event_date, service, extras, notes, customer_email)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (name, location, phone, event_date, service, extras, notes, customer_email)
+        )
         db.commit()
+
+        # 🔔 Send email + WhatsApp notifications (non-blocking approach would be to queue; here we call directly)
+        send_notifications(name, location, phone, event_date, service, extras, notes, customer_email)
 
         flash("✅ Booking submitted successfully!", "success")
         return redirect(url_for("book"))
 
+    # GET
     return render_template("book.html")
+
 
 @app.route("/admin")
 def admin():
@@ -176,19 +236,25 @@ def admin():
     rows = db.execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
     return render_template("admin.html", bookings=rows)
 
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("username") == ADMIN_USER and request.form.get("password") == ADMIN_PASS:
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if username == ADMIN_USER and password == ADMIN_PASS:
             session["admin"] = True
             return redirect(url_for("admin"))
         flash("❌ Invalid Credentials", "danger")
     return render_template("login.html")
+
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Use 0.0.0.0 in production container if you want external access; debug should be False in production.
+    app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
