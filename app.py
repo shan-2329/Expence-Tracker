@@ -68,29 +68,26 @@ with app.app_context():
 
 # ---------------- Notifications ----------------
 def send_notifications(name, location, phone, event_date, service, extras, notes, customer_email=None):
-    """
-    Send email (Gmail SMTP) to admin and an optional WhatsApp message via UltraMsg.
-    All credentials must be in environment variables:
-      SMTP_USER, SMTP_PASS
-      W_TOKEN, W_INSTANCE  (for UltraMsg)
-    """
     SMTP_USER = os.getenv("SMTP_USER")
     SMTP_PASS = os.getenv("SMTP_PASS")
 
-    # 1) Send email to admin (and optionally to customer_email if provided)
+    # ---------------- EMAIL ----------------
     try:
+        if not SMTP_USER or not SMTP_PASS:
+            app.logger.error("SMTP credentials missing!")
+            return
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"New Booking - {name}"
         msg["From"] = SMTP_USER
-        # Send to admin and optionally to customer
+
         recipients = [SMTP_USER]
         if customer_email:
             recipients.append(customer_email)
         msg["To"] = ", ".join(recipients)
 
         html = f"""
-        <html>
-        <body>
+        <html><body>
             <h2>New Booking Received</h2>
             <p><b>Name:</b> {name}</p>
             <p><b>Phone:</b> {phone}</p>
@@ -99,8 +96,7 @@ def send_notifications(name, location, phone, event_date, service, extras, notes
             <p><b>Extras:</b> {extras}</p>
             <p><b>Location:</b> {location}</p>
             <p><b>Notes:</b> {notes}</p>
-        </body>
-        </html>
+        </body></html>
         """
         msg.attach(MIMEText(html, "html"))
 
@@ -108,41 +104,37 @@ def send_notifications(name, location, phone, event_date, service, extras, notes
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, recipients, msg.as_string())
 
-        app.logger.info("Email notification sent ✔")
+        app.logger.info("EMAIL SENT ✓")
 
     except Exception as e:
         app.logger.exception("EMAIL ERROR: %s", e)
 
-    # 2) Send WhatsApp notification via UltraMsg (if token+instance present)
+    # ---------------- WHATSAPP ----------------
     try:
-        api_token = os.getenv("fmkdtkcsdxc8sykr")
-        instance_id = os.getenv("instance150871")
+        api_token = os.getenv("W_TOKEN")         # correct
+        instance_id = os.getenv("W_INSTANCE")    # correct
 
-        if api_token and instance_id and phone:
-            url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+        if not api_token or not instance_id:
+            app.logger.info("WHATSAPP SKIPPED: Missing W_TOKEN/W_INSTANCE")
+            return
 
-            # UltraMsg expects the 'to' in full international format e.g. +919876543210
-            # Make sure `phone` is in that format or adjust before calling.
-            body_text = (
+        url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+
+        payload = {
+            "token": api_token,
+            "to": phone,
+            "body": (
                 f"Hello {name} 🌸\n\n"
-                f"Your booking with *JAGADHA A to Z Event Management* is confirmed!\n\n"
+                f"Your booking is confirmed!\n"
                 f"📅 Event Date: {event_date}\n"
                 f"🎯 Service: {service}\n"
                 f"📍 Location: {location}\n"
-                f"✨ Extras: {extras}\n\n"
-                f"Thank you for choosing us ❤️"
+                f"✨ Extras: {extras}\n"
             )
+        }
 
-            payload = {
-                "token": api_token,
-                "to": phone,
-                "body": body_text
-            }
-
-            r = requests.post(url, data=payload, timeout=15)
-            app.logger.info("WhatsApp response: %s", r.text)
-        else:
-            app.logger.info("WHATSAPP SKIPPED: token/instance/phone not set")
+        r = requests.post(url, data=payload, timeout=15)
+        app.logger.info("WHATSAPP RESPONSE: %s", r.text)
 
     except Exception as e:
         app.logger.exception("WHATSAPP ERROR: %s", e)
