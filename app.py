@@ -61,80 +61,45 @@ def create_tables():
 with app.app_context():
     create_tables()
 
+# ---------------- EMAIL (BREVO API) ----------------
+from sib_api_v3_sdk import Configuration, ApiClient, TransactionalEmailsApi, SendSmtpEmail
 
-# ---------------- Notifications ----------------
-def send_notifications(name, location, phone, event_date, service, extras, notes, customer_email=None):
-    SMTP_USER = os.getenv("SMTP_USER")
-    SMTP_PASS = os.getenv("SMTP_PASS")
+def send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email=None):
+    api_key = os.getenv("BREVO_API")
+    admin_email = os.getenv("ADMIN_EMAIL")
 
-    # ---------------- EMAIL ----------------
+    configuration = Configuration()
+    configuration.api_key['api-key'] = api_key
+
+    api_instance = TransactionalEmailsApi(ApiClient(configuration))
+
+    to_list = [{"email": admin_email}]
+    if customer_email:
+        to_list.append({"email": customer_email})
+
+    html_content = f"""
+    <h2>New Booking</h2>
+    <p><b>Name:</b> {name}</p>
+    <p><b>Phone:</b> {phone}</p>
+    <p><b>Date:</b> {event_date}</p>
+    <p><b>Service:</b> {service}</p>
+    <p><b>Extras:</b> {extras}</p>
+    <p><b>Location:</b> {location}</p>
+    <p><b>Notes:</b> {notes}</p>
+    """
+
+    send_smtp_email = SendSmtpEmail(
+        to=to_list,
+        sender={"email": admin_email},
+        subject=f"New Booking - {name}",
+        html_content=html_content,
+    )
+
     try:
-        if not SMTP_USER or not SMTP_PASS:
-            app.logger.error("SMTP credentials missing!")
-            return
-
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"New Booking - {name}"
-        msg["From"] = SMTP_USER
-
-        recipients = [SMTP_USER]
-        if customer_email:
-            recipients.append(customer_email)
-        msg["To"] = ", ".join(recipients)
-
-        html = f"""
-        <html><body>
-            <h2>New Booking Received</h2>
-            <p><b>Name:</b> {name}</p>
-            <p><b>Phone:</b> {phone}</p>
-            <p><b>Event Date:</b> {event_date}</p>
-            <p><b>Service:</b> {service}</p>
-            <p><b>Extras:</b> {extras}</p>
-            <p><b>Location:</b> {location}</p>
-            <p><b>Notes:</b> {notes}</p>
-        </body></html>
-        """
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, recipients, msg.as_string())
-
-        app.logger.info("EMAIL SENT ✓")
-
+        api_instance.send_transac_email(send_smtp_email)
+        print("BREVO EMAIL SENT ✓")
     except Exception as e:
-        app.logger.exception("EMAIL ERROR: %s", e)
-
-    # ---------------- WHATSAPP ----------------
-    try:
-        api_token = os.getenv("W_TOKEN")
-        instance_id = os.getenv("W_INSTANCE")
-
-        if not api_token or not instance_id:
-            app.logger.info("WHATSAPP SKIPPED: Missing W_TOKEN/W_INSTANCE")
-            return
-
-        url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
-
-        payload = {
-            "token": api_token,
-            "to": phone,
-            "body": (
-                f"Hello {name} 🌸\n\n"
-                f"Your booking is confirmed!\n"
-                f"📅 Event Date: {event_date}\n"
-                f"🎯 Service: {service}\n"
-                f"📍 Location: {location}\n"
-                f"✨ Extras: {extras}\n"
-            )
-        }
-
-        r = requests.post(url, data=payload, timeout=15)
-        app.logger.info("WHATSAPP RESPONSE: %s", r.text)
-
-    except Exception as e:
-        app.logger.exception("WHATSAPP ERROR: %s", e)
-
+        print("BREVO ERROR:", e)
 
 # ---------------- Utility ----------------
 def render_with_values(message, category="danger", **kwargs):
