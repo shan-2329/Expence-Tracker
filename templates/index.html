@@ -17,7 +17,7 @@
     :root{
       --gold-1: #f6d365;
       --gold-2: #fda085;
-      --accent-dark: #0b1220;
+      --accent-dark: #e91e63;
       --muted: #f6f6f7;
       --card-bg: rgba(255,255,255,0.03);
     }
@@ -52,17 +52,22 @@
       background-image: url('/static/images/hero.jpg');
       background-size: cover;
       background-position: center center;
-      filter: saturate(0.9) contrast(1.02) brightness(0.55);
+      filter: saturate(0.9) contrast(1.35) brightness(0.55);
       z-index: 0;
       transform: scale(1.02);
     }
 
-    /* soft gold gradient overlay */
+    /* soft gold + pink gradient overlay */
     .hero::after{
       content:"";
       position:absolute;
       inset:0;
-      background: linear-gradient(135deg, rgba(255,215,160,0.12), rgba(255,200,120,0.06) 40%, rgba(6,10,18,0.55));
+      background: linear-gradient(
+        135deg,
+        rgba(255,215,160,0.12),
+        rgba(255,200,120,0.06) 40%,
+        rgba(255,105,180,0.55)
+      );
       z-index:1;
       mix-blend-mode: overlay;
     }
@@ -128,7 +133,7 @@
       border-radius:4px;
     }
 
-    /* CONTENT CARD (services highlight) - floating card overlay */
+    /* CONTENT CARD */
     .hero-card {
       margin-top: 1.75rem;
       background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
@@ -155,13 +160,25 @@
       padding: 0 1rem;
       color: #222;
     }
-    .services h2 { font-family: 'Playfair Display', serif; font-weight:800; text-align:center; color:#1b1b1b; margin-bottom:1.25rem; font-size:1.75rem; }
+    .services h2 {
+      font-family: 'Playfair Display', serif;
+      font-weight:800;
+      text-align:center;
+      color:#1b1b1b;
+      margin-bottom:1.25rem;
+      font-size:1.75rem;
+    }
+
     .service-item {
       padding: 0.6rem 0;
       border-left: 8px solid transparent;
       transition: all .18s ease;
     }
-    .service-item:hover { transform: translateY(-4px); background: rgba(246,182,74,0.02); border-left-color: rgba(246,182,74,0.45); }
+    .service-item:hover {
+      transform: translateY(-4px);
+      background: rgba(246,182,74,0.02);
+      border-left-color: rgba(246,182,74,0.45);
+    }
 
     /* FOOTER */
     footer {
@@ -188,29 +205,12 @@
   <header class="hero">
     <div class="hero-inner">
       <span class="brand"><span class="shimmer">JAGADHA 💗 A to Z 💗Event Management</span>
-<!--      <span class="brand"><span class="shimmer">JAGADHA 💗 A to Z 💗</span> Event Management</span>-->
       <p class="tagline gold-underline">✨ We Design Your Happiest Day ✨</p>
       <p class="tagline gold-underline">✨ உங்கள் மகிழ்ச்சியான நாளை நாங்கள் வடிவமைக்கிறோம் ✨</p>
 
-      <!-- CTA -->
       <div class="mt-3">
         <a href="/book" class="btn btn-gold btn-lg">Book Consultation</a>
       </div>
-
-<!--      &lt;!&ndash; floating info card &ndash;&gt;-->
-<!--      <div class="hero-card mt-4">-->
-<!--        <div class="row align-items-center">-->
-<!--          <div class="col-md-9">-->
-<!--            <div class="muted">-->
-<!--              Trusted event designers — Weddings • Birthdays • Corporate • Cultural Events<br>-->
-<!--              Luxury decor, premium vendors, and personalised planning tailored to your dream.-->
-<!--            </div>-->
-<!--          </div>-->
-<!--          <div class="col-md-3 text-md-end mt-3 mt-md-0">-->
-<!--            <a href="/book" class="btn btn-outline-light" style="border-color: rgba(255,215,140,0.14); color: #fff;">Get Started</a>-->
-<!--          </div>-->
-<!--        </div>-->
-<!--      </div>-->
     </div>
   </header>
 
