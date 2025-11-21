@@ -1,10 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, g, session
 import sqlite3
 from pathlib import Path
-import requests
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import os
 import threading
 
@@ -65,7 +61,7 @@ with app.app_context():
 from sib_api_v3_sdk import Configuration, ApiClient, TransactionalEmailsApi, SendSmtpEmail
 
 def send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email=None):
-    api_key = os.getenv("BREVO_API")
+    api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
 
     configuration = Configuration()
@@ -173,7 +169,7 @@ def book():
 
         # ---------------- BACKGROUND NOTIFICATIONS ----------------
         threading.Thread(
-            target=send_notifications,
+            target=send_email_via_brevo,
             args=(name, location, phone, event_date, service, extras, notes, customer_email),
             daemon=True
         ).start()
