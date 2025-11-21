@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, g, session
 import sqlite3
 from pathlib import Path
@@ -7,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+import threading
 
 # ---------------- App + DB ----------------
 BASE = Path(__file__).resolve().parent
@@ -14,13 +14,10 @@ DB_PATH = BASE / "instance" / "bookings.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
-# Use environment SECRET_KEY in production
 app.secret_key = os.getenv("SECRET_KEY", "change_this_secret_key")
 
-# App DB config
 app.config["DATABASE"] = str(DB_PATH)
 
-# Admin credentials (override via environment in production)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
@@ -61,7 +58,6 @@ def create_tables():
     db.commit()
 
 
-# Ensure tables exist on startup
 with app.app_context():
     create_tables()
 
@@ -111,8 +107,8 @@ def send_notifications(name, location, phone, event_date, service, extras, notes
 
     # ---------------- WHATSAPP ----------------
     try:
-        api_token = os.getenv("W_TOKEN")         # correct
-        instance_id = os.getenv("W_INSTANCE")    # correct
+        api_token = os.getenv("W_TOKEN")
+        instance_id = os.getenv("W_INSTANCE")
 
         if not api_token or not instance_id:
             app.logger.info("WHATSAPP SKIPPED: Missing W_TOKEN/W_INSTANCE")
@@ -140,7 +136,7 @@ def send_notifications(name, location, phone, event_date, service, extras, notes
         app.logger.exception("WHATSAPP ERROR: %s", e)
 
 
-# ---------------- Utility render helper ----------------
+# ---------------- Utility ----------------
 def render_with_values(message, category="danger", **kwargs):
     flash(message, category)
     return render_template("book.html", **kwargs)
@@ -166,7 +162,7 @@ def book():
         extras_list = request.form.getlist("extras")
         extras = ", ".join(extras_list)
 
-        # Required validation
+        # Validations
         if not name:
             return render_with_values("⚠ Please fill Name!", name=name, location=location, phone=phone,
                                       event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
@@ -210,13 +206,16 @@ def book():
         )
         db.commit()
 
-        # 🔔 Send email + WhatsApp notifications (non-blocking approach would be to queue; here we call directly)
-        send_notifications(name, location, phone, event_date, service, extras, notes, customer_email)
+        # ---------------- BACKGROUND NOTIFICATIONS ----------------
+        threading.Thread(
+            target=send_notifications,
+            args=(name, location, phone, event_date, service, extras, notes, customer_email),
+            daemon=True
+        ).start()
 
         flash("✅ Booking submitted successfully!", "success")
         return redirect(url_for("book"))
 
-    # GET
     return render_template("book.html")
 
 
@@ -248,5 +247,4 @@ def logout():
 
 
 if __name__ == "__main__":
-    # Use 0.0.0.0 in production container if you want external access; debug should be False in production.
     app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
