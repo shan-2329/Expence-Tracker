@@ -65,7 +65,7 @@ with app.app_context():
 
 # ---------------- EMAIL (BREVO API) ----------------
 def send_email_via_brevo(
-    name, location, phone, event_date, service, extras, notes, customer_email=None, whatsapp_link=None
+    name, location, phone, event_date, service, extras, notes, customer_email, whatsapp_link=None
 ):
     api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
@@ -107,7 +107,7 @@ def send_email_via_brevo(
     <table style="width:100%; font-size:15px;">
       <tr><td><b>📛 Name:</b></td><td>{name}</td></tr>
       <tr><td><b>📞 Phone:</b></td><td>{phone}</td></tr>
-      <tr><td><b>📅 Event Date:</b></td><td>{event_date}</td></tr>
+      <tr><td><b>📅 Evnt. Date:</b></td><td>{event_date}</td></tr>
       <tr><td><b>🎈 Service:</b></td><td>{service}</td></tr>
       <tr><td><b>✨ Extras:</b></td><td>{extras}</td></tr>
       <tr><td><b>📍 Location:</b></td><td>{location}</td></tr>
@@ -155,7 +155,7 @@ def send_email_via_brevo(
 
 
 # ---------------- WHATSAPP (UltraMSG API or Free Link) ----------------
-def send_whatsapp_message(name, phone, event_date, service, extras, location, notes):
+def send_whatsapp_message(name, phone, event_date, service, extras, location,customer_email, notes):
     instance = os.getenv("W_INSTANCE")
     token = os.getenv("W_TOKEN")
 
@@ -170,6 +170,7 @@ def send_whatsapp_message(name, phone, event_date, service, extras, location, no
 
 📛 *Name:* {name}
 📞 *Phone:* {phone}
+📧 *Phone:* {customer_email}
 📅 *Event Date:* {event_date}
 🎈 *Service:* {service}
 ✨ *Extras:* {extras}
