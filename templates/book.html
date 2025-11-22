@@ -18,7 +18,7 @@
         }
 
         .gold-card {
-            background: rgba(255,255,255,0.92);
+            background: rgba(55,255,255,0.92);
             border: 2px solid #d4af37;
             border-radius: 18px;
             padding: 25px;
@@ -130,6 +130,11 @@
         <div class="form-floating mb-3">
             <input type="text" class="form-control" id="phone" name="phone" value="{{ phone or '' }}">
             <label for="phone">Phone</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" id="customer_email" name="Email" value="{{ customer_email or '' }}">
+            <label for="phone">Customer Email</label>
         </div>
 
         <div class="form-floating mb-3">
