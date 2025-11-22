@@ -108,31 +108,67 @@ def send_email_via_brevo(name, location, phone, event_date, service,
     if customer_email:
         to_list.append({"email": customer_email})
 
-    html_content = f"""
-    <h2>🎉 Booking Confirmation</h2>
-    <p><b>Name:</b> {name}</p>
-    <p><b>Phone:</b> {phone}</p>
-    <p><b>Email:</b> {customer_email}</p>
-    <p><b>Event Date:</b> {event_date}</p>
-    <p><b>Service:</b> {service}</p>
-    <p><b>Extras:</b> {extras}</p>
-    <p><b>Location:</b> {location}</p>
-    <p><b>Notes:</b> {notes}</p>
-    <p><a href="{whatsapp_link}">Chat on WhatsApp</a></p>
+        html_content = f"""<!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial; background:#f7f7f7; margin:0; padding:0;">
+
+    <div style="max-width:600px; margin:20px auto; background:white; border-radius:10px;
+                box-shadow:0 4px 20px rgba(0,0,0,0.08); overflow:hidden;">
+
+      <div style="background:#f9c5d5; padding:20px; text-align:center;">
+        <h2 style="margin:0; color:#b01357;">❤️ JAGADHA A to Z Event Management</h2>
+      </div>
+
+      <div style="padding:25px;">
+        <h3>🎉 Booking Confirmation</h3>
+
+        <p>Dear <b>{name}</b>,</p>
+        <p>Your booking has been received. Below are your details:</p>
+
+        <table style="width:100%; font-size:15px;">
+          <tr><td><b>📛 Name:</b></td><td>{name}</td></tr>
+          <tr><td><b>📞 Phone:</b></td><td>{phone}</td></tr>
+          <tr><td><b>📅 Event Date:</b></td><td>{event_date}</td></tr>
+          <tr><td><b>🎈 Service:</b></td><td>{service}</td></tr>
+          <tr><td><b>✨ Extras:</b></td><td>{extras}</td></tr>
+          <tr><td><b>📍 Location:</b></td><td>{location}</td></tr>
+          <tr><td><b>📝 Notes:</b></td><td>{notes}</td></tr>
+        </table>
+
+        <p style="margin-top:20px;">
+          ❤️ Thank you for choosing <b>JAGADHA A to Z Event Management</b>!
+        </p>
+
+        <div style="text-align:center; margin:25px 0;">
+          <a href="https://jagadha-a-to-z-event-management.onrender.com"
+             style="background:#b01357; color:white; padding:12px 25px; text-decoration:none;
+             border-radius:6px;">
+            Visit Our Website
+          </a>
+        </div>
+      </div>
+
+      <div style="background:#fafafa; padding:15px; text-align:center; font-size:13px;">
+        © 2025 JAGADHA A to Z Event Management<br>This is an automated message.
+      </div>
+
+    </div>
+    </body>
+    </html>
     """
 
-    email_obj = SendSmtpEmail(
-        to=to_list,
-        sender={"email": admin_email},
-        subject=f"Booking Confirmation - {name}",
-        html_content=html_content,
-    )
+        send_smtp_email = SendSmtpEmail(
+            to=to_list,
+            sender={"email": admin_email},
+            subject=f"🎉 Booking Confirmation - {name}",
+            html_content=html_content,
+        )
 
-    try:
-        api_instance.send_transac_email(email_obj)
-        print("BREVO EMAIL SENT ✓")
-    except Exception as e:
-        print("BREVO ERROR:", e)
+        try:
+            api_instance.send_transac_email(send_smtp_email)
+            print("BREVO EMAIL SENT ✓")
+        except Exception as e:
+            print("BREVO ERROR:", e)
 
 
 # ---------------- WHATSAPP (UltraMSG or Free Link) ----------------
@@ -349,8 +385,6 @@ def fixdb():
         return "DB FIXED ✓"
     except Exception as e:
         return f"Already exists or error: {e}"
-
-
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
