@@ -3,6 +3,11 @@ import sqlite3
 from pathlib import Path
 import os
 import threading
+import requests
+
+# Brevo
+from sib_api_v3_sdk import Configuration, TransactionalEmailsApi, ApiClient, SendSmtpEmail
+
 
 # ---------------- App + DB ----------------
 BASE = Path(__file__).resolve().parent
@@ -18,7 +23,7 @@ ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
 
-# ---------------- Database helpers ----------------
+# ---------------- Database Helpers ----------------
 def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(app.config["DATABASE"], detect_types=sqlite3.PARSE_DECLTYPES)
@@ -57,15 +62,22 @@ def create_tables():
 with app.app_context():
     create_tables()
 
-# ---------------- EMAIL (BREVO API) ----------------
-from sib_api_v3_sdk import Configuration, ApiClient, TransactionalEmailsApi, SendSmtpEmail
 
+# ---------------- EMAIL (BREVO API) ----------------
 def send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email=None):
     api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
 
+    if not api_key:
+        print("BREVO ERROR: API KEY missing!")
+        return
+
+    if not admin_email:
+        print("BREVO ERROR: ADMIN_EMAIL missing!")
+        return
+
     configuration = Configuration()
-    configuration.api_key['api-key'] = api_key
+    configuration.api_key["api-key"] = api_key
 
     api_instance = TransactionalEmailsApi(ApiClient(configuration))
 
@@ -73,21 +85,59 @@ def send_email_via_brevo(name, location, phone, event_date, service, extras, not
     if customer_email:
         to_list.append({"email": customer_email})
 
-    html_content = f"""
-    <h2>New Booking</h2>
-    <p><b>Name:</b> {name}</p>
-    <p><b>Phone:</b> {phone}</p>
-    <p><b>Date:</b> {event_date}</p>
-    <p><b>Service:</b> {service}</p>
-    <p><b>Extras:</b> {extras}</p>
-    <p><b>Location:</b> {location}</p>
-    <p><b>Notes:</b> {notes}</p>
-    """
+    html_content = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial; background:#f7f7f7; margin:0; padding:0;">
+
+<div style="max-width:600px; margin:20px auto; background:white; border-radius:10px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.08); overflow:hidden;">
+
+  <div style="background:#f9c5d5; padding:20px; text-align:center;">
+    <h2 style="margin:0; color:#b01357;">❤️ JAGADHA A to Z Event Management</h2>
+  </div>
+
+  <div style="padding:25px;">
+    <h3>🎉 Booking Confirmation</h3>
+
+    <p>Dear <b>{name}</b>,</p>
+    <p>Your booking has been received. Below are your details:</p>
+
+    <table style="width:100%; font-size:15px;">
+      <tr><td><b>📛 Name:</b></td><td>{name}</td></tr>
+      <tr><td><b>📞 Phone:</b></td><td>{phone}</td></tr>
+      <tr><td><b>📅 Event Date:</b></td><td>{event_date}</td></tr>
+      <tr><td><b>🎈 Service:</b></td><td>{service}</td></tr>
+      <tr><td><b>✨ Extras:</b></td><td>{extras}</td></tr>
+      <tr><td><b>📍 Location:</b></td><td>{location}</td></tr>
+      <tr><td><b>📝 Notes:</b></td><td>{notes}</td></tr>
+    </table>
+
+    <p style="margin-top:20px;">
+      ❤️ Thank you for choosing <b>JAGADHA A to Z Event Management</b>!
+    </p>
+
+    <div style="text-align:center; margin:25px 0;">
+      <a href="https://jagadha-a-to-z-event-management.onrender.com"
+         style="background:#b01357; color:white; padding:12px 25px; text-decoration:none;
+         border-radius:6px;">
+        Visit Our Website
+      </a>
+    </div>
+  </div>
+
+  <div style="background:#fafafa; padding:15px; text-align:center; font-size:13px;">
+    © 2025 JAGADHA A to Z Event Management<br>This is an automated message.
+  </div>
+
+</div>
+</body>
+</html>
+"""
 
     send_smtp_email = SendSmtpEmail(
         to=to_list,
         sender={"email": admin_email},
-        subject=f"New Booking - {name}",
+        subject=f"🎉 Booking Confirmation - {name}",
         html_content=html_content,
     )
 
@@ -96,6 +146,45 @@ def send_email_via_brevo(name, location, phone, event_date, service, extras, not
         print("BREVO EMAIL SENT ✓")
     except Exception as e:
         print("BREVO ERROR:", e)
+
+
+# ---------------- WHATSAPP (UltraMSG API) ----------------
+def send_whatsapp_message(name, phone, event_date, service, extras, location, notes):
+    instance = os.getenv("W_INSTANCE")
+    token = os.getenv("W_TOKEN")
+
+    if not instance or not token:
+        print("WHATSAPP ERROR: Missing env variables!")
+        return
+
+    url = f"https://api.ultramsg.com/{instance}/messages/chat"
+
+    message = f"""
+🎉 *Booking Confirmation* 🎉
+
+📛 *Name:* {name}
+📞 *Phone:* {phone}
+📅 *Event Date:* {event_date}
+🎈 *Service:* {service}
+✨ *Extras:* {extras}
+📍 *Location:* {location}
+📝 *Notes:* {notes}
+
+❤️ Thank you for choosing *JAGADHA A to Z Event Management*!
+"""
+
+    payload = {
+        "token": token,
+        "to": f"91{phone}",
+        "body": message
+    }
+
+    try:
+        response = requests.post(url, data=payload)
+        print("WHATSAPP SENT ✓", response.text)
+    except Exception as e:
+        print("WHATSAPP ERROR:", e)
+
 
 # ---------------- Utility ----------------
 def render_with_values(message, category="danger", **kwargs):
@@ -125,53 +214,50 @@ def book():
 
         # Validations
         if not name:
-            return render_with_values("⚠ Please fill Name!", name=name, location=location, phone=phone,
-                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
+            return render_with_values("⚠ Please fill Name!", name=name, location=location,
+                                      phone=phone, event_date=event_date,
+                                      service=service, notes=notes, selected_extras=extras_list)
 
         if not location:
-            return render_with_values("⚠ Please fill Location!", name=name, location=location, phone=phone,
-                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
+            return render_with_values("⚠ Please fill Location!", name=name, location=location,
+                                      phone=phone, event_date=event_date,
+                                      service=service, notes=notes, selected_extras=extras_list)
 
         if not phone:
-            return render_with_values("⚠ Please fill Phone!", name=name, location=location, phone=phone,
-                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
+            return render_with_values("⚠ Please fill Phone!", name=name, location=location,
+                                      phone=phone, event_date=event_date,
+                                      service=service, notes=notes, selected_extras=extras_list)
 
         if not event_date:
-            return render_with_values("⚠ Please fill Date of Event!", name=name, location=location, phone=phone,
-                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
+            return render_with_values("⚠ Please fill Date!", name=name, location=location,
+                                      phone=phone, event_date=event_date,
+                                      service=service, notes=notes, selected_extras=extras_list)
 
         if not service:
-            return render_with_values("⚠ Please select Service!", name=name, location=location, phone=phone,
-                                      event_date=event_date, service=service, notes=notes, selected_extras=extras_list)
+            return render_with_values("⚠ Please select Service!", name=name, location=location,
+                                      phone=phone, event_date=event_date,
+                                      service=service, notes=notes, selected_extras=extras_list)
 
         if len(extras_list) == 0:
-            return render_with_values(
-                "⚠ Additional Services not selected!",
-                name=name,
-                location=location,
-                phone=phone,
-                event_date=event_date,
-                service=service,
-                notes=notes,
-                selected_extras=extras_list
-            )
+            return render_with_values("⚠ Select Additional Services!", name=name, location=location,
+                                      phone=phone, event_date=event_date,
+                                      service=service, notes=notes, selected_extras=extras_list)
 
-        # SAVE TO DB
+        # Save to DB
         db = get_db()
-        db.execute(
-            """
+        db.execute("""
             INSERT INTO bookings (name, location, phone, event_date, service, extras, notes, customer_email)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (name, location, phone, event_date, service, extras, notes, customer_email)
-        )
+        """, (name, location, phone, event_date, service, extras, notes, customer_email))
         db.commit()
 
-        # ---------------- BACKGROUND NOTIFICATIONS ----------------
+        # Background Notifications
         threading.Thread(
-            target=send_email_via_brevo,
-            args=(name, location, phone, event_date, service, extras, notes, customer_email),
-            daemon=True
+            target=lambda: (
+                send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email),
+                send_whatsapp_message(name, phone, event_date, service, extras, location, notes)
+            ),
+            daemon=True,
         ).start()
 
         flash("✅ Booking submitted successfully!", "success")
@@ -184,17 +270,14 @@ def book():
 def admin():
     if not session.get("admin"):
         return redirect(url_for("login"))
-    db = get_db()
-    rows = db.execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
+    rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
     return render_template("admin.html", bookings=rows)
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-        if username == ADMIN_USER and password == ADMIN_PASS:
+        if request.form.get("username") == ADMIN_USER and request.form.get("password") == ADMIN_PASS:
             session["admin"] = True
             return redirect(url_for("admin"))
         flash("❌ Invalid Credentials", "danger")
