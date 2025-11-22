@@ -340,6 +340,17 @@ def reject_booking(booking_id):
     flash("Booking Rejected ❌", "warning")
     return redirect(url_for("admin"))
 
+@app.route("/fixdb")
+def fixdb():
+    db = get_db()
+    try:
+        db.execute("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'")
+        db.commit()
+        return "DB FIXED ✓"
+    except Exception as e:
+        return f"Already exists or error: {e}"
+
+
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
