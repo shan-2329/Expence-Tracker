@@ -99,7 +99,7 @@ def send_email_via_brevo(
   </div>
 
   <div style="padding:25px;">
-    <h3>🎉 Booking Confirmation</h3>
+    <h3>🎉 Booking Confirmation 🎉</h3>
 
     <p>Dear <b>{name}</b>,</p>
     <p>Your booking has been received. Below are your details:</p>
@@ -283,7 +283,6 @@ def book():
         return redirect(url_for("book"))
 
     return render_template("book.html")
-
 
 @app.route("/admin")
 def admin():
