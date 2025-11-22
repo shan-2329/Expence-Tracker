@@ -34,6 +34,12 @@
             background: #fff3cd;
             color: #854d0e;
             font-weight: 700;
+            white-space: nowrap;
+        }
+
+        td {
+            vertical-align: middle;
+            white-space: normal;
         }
 
         .badge-service {
@@ -65,6 +71,11 @@
             border-radius: 10px;
             padding: 10px;
         }
+
+        .action-btn {
+            margin: 1px;
+            padding: 4px 10px;
+        }
     </style>
 </head>
 
@@ -89,20 +100,20 @@
         {% else %}
 
         <div class="table-responsive">
-            <table id="bookTable" class="table table-bordered align-middle">
+            <table id="bookTable" class="table table-bordered align-middle table-sm">
                 <thead>
                     <tr>
                         <th>#</th>
                         <th>Name</th>
                         <th>Phone</th>
                         <th>Location</th>
-                        <th>Event Date</th>
+                        <th>Date</th>
                         <th>Service</th>
                         <th>Extras</th>
                         <th>Notes</th>
                         <th>Email</th>
-                        <th>Created</th>
-                        <th>Delete</th>
+                        <th>Status</th>
+                        <th style="min-width:200px">Actions</th>
                     </tr>
                 </thead>
 
@@ -115,14 +126,31 @@
                         <td>{{ row.location }}</td>
                         <td>{{ row.event_date }}</td>
                         <td><span class="badge-service">{{ row.service }}</span></td>
-                        <td>{{ row.extras }}</td>
-                        <td>{{ row.notes }}</td>
+                        <td style="max-width:250px;">{{ row.extras }}</td>
+                        <td style="max-width:250px;">{{ row.notes }}</td>
                         <td>{{ row.customer_email or "-" }}</td>
-                        <td>{{ row.created_at }}</td>
+
+                        <!-- STATUS -->
+                        <td>
+                            {% if row.status == 'Confirmed' %}
+                                <span class="badge bg-success">Confirmed</span>
+                            {% elif row.status == 'Rejected' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- ACTION BUTTONS -->
                         <td class="text-center">
-                            <button class="btn btn-danger btn-sm" onclick="deleteBooking({{ row.id }})">
-                                ❌
-                            </button>
+                            <button class="btn btn-success btn-sm action-btn"
+                                    onclick="confirmBooking({{ row.id }})">✔ Confirm</button>
+
+                            <button class="btn btn-warning btn-sm action-btn"
+                                    onclick="rejectBooking({{ row.id }})">✖ Reject</button>
+
+                            <button class="btn btn-danger btn-sm action-btn"
+                                    onclick="deleteBooking({{ row.id }})">🗑 Delete</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -196,6 +224,36 @@ function deleteBooking(id) {
     }).then(result => {
         if (result.isConfirmed) {
             window.location.href = "/delete/" + id;
+        }
+    });
+}
+
+/* ------------------------- CONFIRM BOOKING ------------------------ */
+function confirmBooking(id) {
+    Swal.fire({
+        title: "Confirm Booking?",
+        text: "Customer will receive confirmation notification.",
+        icon: "success",
+        showCancelButton: true,
+        confirmButtonText: "Confirm"
+    }).then(result => {
+        if (result.isConfirmed) {
+            window.location.href = "/confirm/" + id;
+        }
+    });
+}
+
+/* ------------------------- REJECT BOOKING ------------------------ */
+function rejectBooking(id) {
+    Swal.fire({
+        title: "Reject Booking?",
+        text: "Customer may receive a rejection notification.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Reject"
+    }).then(result => {
+        if (result.isConfirmed) {
+            window.location.href = "/reject/" + id;
         }
     });
 }
