@@ -64,7 +64,9 @@ with app.app_context():
 
 
 # ---------------- EMAIL (BREVO API) ----------------
-def send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email=None):
+def send_email_via_brevo(
+    name, location, phone, event_date, service, extras, notes, customer_email=None, whatsapp_link=None
+):
     api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
 
@@ -93,7 +95,7 @@ def send_email_via_brevo(name, location, phone, event_date, service, extras, not
             box-shadow:0 4px 20px rgba(0,0,0,0.08); overflow:hidden;">
 
   <div style="background:#f9c5d5; padding:20px; text-align:center;">
-    <h2 style="margin:0; color:#b01357;">❤️ JAGADHA A to Z Event Management</h2>
+    <h2 style="margin:0; color:#b01357;">❤️ JAGADHA A to Z Event Management ❤️</h2>
   </div>
 
   <div style="padding:25px;">
@@ -112,11 +114,15 @@ def send_email_via_brevo(name, location, phone, event_date, service, extras, not
       <tr><td><b>📝 Notes:</b></td><td>{notes}</td></tr>
     </table>
 
-    <p style="margin-top:20px;">
-      ❤️ Thank you for choosing <b>JAGADHA A to Z Event Management</b>!
-    </p>
+    <div style="text-align:center; margin:30px 0;">
+      <a href="{whatsapp_link}"
+         style="background:#25D366; color:white; padding:12px 25px;
+                text-decoration:none; border-radius:6px; font-size:16px;">
+         💬 Chat on WhatsApp
+      </a>
+    </div>
 
-    <div style="text-align:center; margin:25px 0;">
+    <div style="text-align:center; margin:20px 0;">
       <a href="https://jagadha-a-to-z-event-management.onrender.com"
          style="background:#b01357; color:white; padding:12px 25px; text-decoration:none;
          border-radius:6px;">
@@ -148,13 +154,13 @@ def send_email_via_brevo(name, location, phone, event_date, service, extras, not
         print("BREVO ERROR:", e)
 
 
-# ---------------- WHATSAPP (UltraMSG API) ----------------
+# ---------------- WHATSAPP (UltraMSG API or Free Link) ----------------
 def send_whatsapp_message(name, phone, event_date, service, extras, location, notes):
     instance = os.getenv("W_INSTANCE")
     token = os.getenv("W_TOKEN")
 
     if not instance or not token:
-        print("WHATSAPP ERROR: Missing env variables!")
+        print("WHATSAPP API DISABLED → Only showing WhatsApp link in Email.")
         return
 
     url = f"https://api.ultramsg.com/{instance}/messages/chat"
@@ -212,36 +218,43 @@ def book():
         extras_list = request.form.getlist("extras")
         extras = ", ".join(extras_list)
 
+        # WhatsApp Link (FREE)
+        whatsapp_link = (
+            f"https://wa.me/91{phone}"
+            "?text=Hello%20JAGADHA%20A%20to%20Z%20Event%20Management,"
+            "%20I%20want%20to%20discuss%20my%20booking."
+        )
+
         # Validations
         if not name:
             return render_with_values("⚠ Please fill Name!", name=name, location=location,
-                                      phone=phone, event_date=event_date,
-                                      service=service, notes=notes, selected_extras=extras_list)
+                                      phone=phone, event_date=event_date, service=service,
+                                      notes=notes, selected_extras=extras_list)
 
         if not location:
             return render_with_values("⚠ Please fill Location!", name=name, location=location,
-                                      phone=phone, event_date=event_date,
-                                      service=service, notes=notes, selected_extras=extras_list)
+                                      phone=phone, event_date=event_date, service=service,
+                                      notes=notes, selected_extras=extras_list)
 
         if not phone:
             return render_with_values("⚠ Please fill Phone!", name=name, location=location,
-                                      phone=phone, event_date=event_date,
-                                      service=service, notes=notes, selected_extras=extras_list)
+                                      phone=phone, event_date=event_date, service=service,
+                                      notes=notes, selected_extras=extras_list)
 
         if not event_date:
             return render_with_values("⚠ Please fill Date!", name=name, location=location,
-                                      phone=phone, event_date=event_date,
-                                      service=service, notes=notes, selected_extras=extras_list)
+                                      phone=phone, event_date=event_date, service=service,
+                                      notes=notes, selected_extras=extras_list)
 
         if not service:
             return render_with_values("⚠ Please select Service!", name=name, location=location,
-                                      phone=phone, event_date=event_date,
-                                      service=service, notes=notes, selected_extras=extras_list)
+                                      phone=phone, event_date=event_date, service=service,
+                                      notes=notes, selected_extras=extras_list)
 
         if len(extras_list) == 0:
             return render_with_values("⚠ Select Additional Services!", name=name, location=location,
-                                      phone=phone, event_date=event_date,
-                                      service=service, notes=notes, selected_extras=extras_list)
+                                      phone=phone, event_date=event_date, service=service,
+                                      notes=notes, selected_extras=extras_list)
 
         # Save to DB
         db = get_db()
@@ -254,10 +267,15 @@ def book():
         # Background Notifications
         threading.Thread(
             target=lambda: (
-                send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email),
-                send_whatsapp_message(name, phone, event_date, service, extras, location, notes)
+                send_email_via_brevo(
+                    name, location, phone, event_date, service, extras, notes,
+                    customer_email, whatsapp_link
+                ),
+                send_whatsapp_message(
+                    name, phone, event_date, service, extras, location, notes
+                )
             ),
-            daemon=True,
+            daemon=True
         ).start()
 
         flash("✅ Booking submitted successfully!", "success")
@@ -289,6 +307,17 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+@app.route("/delete/<int:booking_id>")
+def delete_booking(booking_id):
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
+    db = get_db()
+    db.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
+    db.commit()
+
+    flash("🗑️ Booking deleted successfully!", "success")
+    return redirect(url_for("admin"))
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
