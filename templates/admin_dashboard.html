@@ -25,6 +25,8 @@
         .card-stats {
             border-left: 6px solid #d4af37;
             transition: 0.2s;
+            background: white;
+            border-radius: 12px;
         }
         .card-stats:hover {
             transform: translateY(-5px);
@@ -39,11 +41,6 @@
             box-shadow: 0 2px 12px rgba(0,0,0,0.05);
         }
 
-        .pagination button {
-            border-radius: 8px;
-            padding: 6px 12px;
-        }
-
         table thead {
             background: #fff7df;
             color: #8b6f00;
@@ -52,6 +49,31 @@
 
         table tbody tr:hover {
             background: #fff9ea;
+        }
+
+        .badge-pending {
+            background: #ffcc00;
+            color: #5a4500;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+        .badge-confirmed {
+            background: #28a745;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+        .badge-rejected {
+            background: #dc3545;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        .action-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 6px;
         }
     </style>
 </head>
@@ -97,7 +119,7 @@
             <thead>
                 <tr>
                     <th>#</th><th>Name</th><th>Phone</th><th>Service</th><th>Date</th>
-                    <th>Status</th><th>Location</th><th>Email</th>
+                    <th>Status</th><th>Location</th><th>Email</th><th>Actions</th>
                 </tr>
             </thead>
             <tbody id="bookingTable"></tbody>
@@ -179,6 +201,11 @@ function renderTable() {
 
     let html = "";
     pageData.forEach((b, i) => {
+        let badge =
+            b.status === "Pending" ? `<span class="badge-pending">Pending</span>` :
+            b.status === "Confirmed" ? `<span class="badge-confirmed">Confirmed</span>` :
+            `<span class="badge-rejected">Rejected</span>`;
+
         html += `
         <tr>
             <td>${start + i + 1}</td>
@@ -186,9 +213,15 @@ function renderTable() {
             <td>${b.phone}</td>
             <td>${b.service}</td>
             <td>${b.event_date}</td>
-            <td>${b.status}</td>
+            <td>${badge}</td>
             <td>${b.location}</td>
             <td>${b.customer_email || "-"}</td>
+            <td>
+                <a href="/confirm/${b.id}" class="btn btn-success btn-sm action-btn">Confirm</a>
+                <a href="/reject/${b.id}" class="btn btn-warning btn-sm action-btn">Reject</a>
+                <a href="/delete/${b.id}" class="btn btn-danger btn-sm action-btn"
+                   onclick="return confirm('Delete this booking?');">Delete</a>
+            </td>
         </tr>`;
     });
 
@@ -226,11 +259,17 @@ document.getElementById("nextPage").onclick = () => {
 };
 
 // Charts
+let chart1, chart2, chart3;
+
 function updateCharts() {
+    if (chart1) chart1.destroy();
+    if (chart2) chart2.destroy();
+    if (chart3) chart3.destroy();
+
     let statuses = {Pending:0, Confirmed:0, Rejected:0};
     filtered.forEach(b => statuses[b.status]++);
 
-    new Chart(document.getElementById("statusChart"), {
+    chart1 = new Chart(document.getElementById("statusChart"), {
         type: 'pie',
         data: {
             labels: ["Pending", "Confirmed", "Rejected"],
@@ -241,7 +280,7 @@ function updateCharts() {
     let serviceCounts = {};
     filtered.forEach(b => serviceCounts[b.service] = (serviceCounts[b.service] || 0) + 1);
 
-    new Chart(document.getElementById("serviceChart"), {
+    chart2 = new Chart(document.getElementById("serviceChart"), {
         type: 'bar',
         data: {
             labels: Object.keys(serviceCounts),
@@ -255,7 +294,7 @@ function updateCharts() {
         monthCounts[m] = (monthCounts[m] || 0) + 1;
     });
 
-    new Chart(document.getElementById("monthlyChart"), {
+    chart3 = new Chart(document.getElementById("monthlyChart"), {
         type: 'line',
         data: {
             labels: Object.keys(monthCounts),
