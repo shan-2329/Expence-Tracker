@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, render_template, request, redirect, url_for, flash, g, session, jsonify, send_file, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, g, session, jsonify, Response, send_file
 import sqlite3
 from pathlib import Path
 import os
@@ -7,9 +7,19 @@ import threading
 import requests
 import csv
 import io
+import base64
+from datetime import datetime, date, timedelta
+from io import BytesIO
 
-# Brevo
+# Email (Brevo)
 from sib_api_v3_sdk import Configuration, TransactionalEmailsApi, ApiClient, SendSmtpEmail
+
+# PDF generation
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+
+# scheduler for daily report
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # ---------------- App + DB ----------------
 BASE = Path(__file__).resolve().parent
@@ -60,6 +70,52 @@ def create_tables():
 with app.app_context():
     create_tables()
 
+# ---------------- Utilities: PDF receipt ----------------
+def generate_pdf_receipt(booking_row):
+    """
+    Return bytes of a simple PDF receipt using reportlab
+    """
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    x = 40
+    y = height - 60
+
+    p.setFont("Helvetica-Bold", 18)
+    p.drawString(x, y, "JAGADHA A to Z Event Management")
+    y -= 30
+    p.setFont("Helvetica", 12)
+    p.drawString(x, y, f"Booking ID: {booking_row['id']}")
+    y -= 18
+    p.drawString(x, y, f"Name: {booking_row['name']}")
+    y -= 16
+    p.drawString(x, y, f"Phone: {booking_row['phone']}")
+    y -= 16
+    p.drawString(x, y, f"Email: {booking_row['customer_email'] or '-'}")
+    y -= 16
+    p.drawString(x, y, f"Event Date: {booking_row['event_date']}")
+    y -= 16
+    p.drawString(x, y, f"Service: {booking_row['service']}")
+    y -= 16
+    p.drawString(x, y, "Extras:")
+    y -= 14
+    p.setFont("Helvetica", 10)
+    p.drawString(x+12, y, booking_row['extras'] or "-")
+    y -= 20
+    p.setFont("Helvetica", 12)
+    p.drawString(x, y, "Notes:")
+    y -= 14
+    p.setFont("Helvetica", 10)
+    text = p.beginText(x, y)
+    notes = booking_row['notes'] or ""
+    for line in notes.splitlines():
+        text.textLine(line)
+    p.drawText(text)
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer.read()
+
 # ---------------- SMS (Fast2SMS) ----------------
 def send_sms_fast2sms(phone, message):
     api_key = os.getenv("FAST2SMS_API_KEY")
@@ -81,9 +137,17 @@ def send_sms_fast2sms(phone, message):
     except Exception as e:
         app.logger.exception("SMS ERROR: %s", e)
 
-# ---------------- EMAIL (BREVO API) ----------------
-def send_email_via_brevo(name, location, phone, event_date, service,
-                         extras, notes, customer_email, whatsapp_link=None):
+# ---------------- EMAIL (BREVO API) with PDF attachment & Tamil ----------------
+def send_email_via_brevo(
+        name, location, phone, event_date, service,
+        extras, notes, customer_email=None,
+        status="Pending", booking_id=None
+    ):
+    """
+    Send booking email using BREVO to both ADMIN and Customer (if available).
+    Attaches PDF receipt when booking_id provided.
+    Adds a Tamil translation block after English.
+    """
     api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
 
@@ -96,77 +160,155 @@ def send_email_via_brevo(name, location, phone, event_date, service,
     api_instance = TransactionalEmailsApi(ApiClient(configuration))
 
     to_list = [{"email": admin_email}]
-    if customer_email:
-        to_list.append({"email": customer_email})
+    if customer_email and customer_email.strip():
+        to_list.append({"email": customer_email.strip()})
 
-    html_content = f"""<!DOCTYPE html><html><body style="font-family: Arial; background:#f7f7f7; margin:0; padding:0;">
-    <div style="max-width:600px; margin:20px auto; background:white; border-radius:10px;
-                box-shadow:0 4px 20px rgba(0,0,0,0.08); overflow:hidden;">
-      <div style="background:#f9c5d5; padding:20px; text-align:center;">
+    status_text = {
+        "Pending": "🎉 Booking Received",
+        "Confirmed": "✅ Booking Confirmed",
+        "Rejected": "❌ Booking Rejected"
+    }.get(status, "🎉 Booking Update")
+
+    # Tamil short translations (you can expand as needed)
+    tamil_status = {
+        "Pending": "உங்கள் முன்பதிவு பெறப்பட்டது",
+        "Confirmed": "உங்கள் முன்பதிவு உறுதிசெய்யப்பட்டது",
+        "Rejected": "மன்னிக்கவும் — உங்கள் முன்பதிவு நிராகரிக்கப்பட்டது"
+    }.get(status, "உத்தரவு நிலை")
+
+    html_content = f"""
+    <!DOCTYPE html><html><body style="font-family: Arial, sans-serif; background:#f7f7f7; margin:0; padding:0;">
+    <div style="max-width:600px; margin:18px auto; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+      <div style="background:#f9c5d5; padding:18px; text-align:center;">
         <h2 style="margin:0; color:#b01357;">❤️ JAGADHA A to Z Event Management ❤️</h2>
       </div>
-      <div style="padding:25px;">
-        <h3>🎉 Booking Confirmation</h3>
+      <div style="padding:18px; color:#333;">
+        <h3>{status_text}</h3>
         <p>Dear <b>{name}</b>,</p>
-        <p>Your booking has been received. Below are your details:</p>
-        <table style="width:100%; font-size:15px;">
+        <p>Your booking details:</p>
+        <table style="width:100%; font-size:14px;">
           <tr><td><b>📛 Name:</b></td><td>{name}</td></tr>
           <tr><td><b>📞 Phone:</b></td><td>{phone}</td></tr>
+          <tr><td><b>📧 Email:</b></td><td>{customer_email or '-'}</td></tr>
           <tr><td><b>📅 Event Date:</b></td><td>{event_date}</td></tr>
           <tr><td><b>🎈 Service:</b></td><td>{service}</td></tr>
           <tr><td><b>✨ Extras:</b></td><td>{extras}</td></tr>
           <tr><td><b>📍 Location:</b></td><td>{location}</td></tr>
-          <tr><td><b>📝 Notes:</b></td><td>{notes}</td></tr>
         </table>
-        <p style="margin-top:20px;">❤️ Thank you for choosing <b>JAGADHA A to Z Event Management</b>!</p>
-        <div style="text-align:center; margin:25px 0;">
-          <a href="https://jagadha-a-to-z-event-management.onrender.com" style="background:#b01357; color:white; padding:12px 25px; text-decoration:none; border-radius:6px;">Visit Our Website</a>
+
+        <p style="margin-top:12px;"><b>Notes:</b> {notes or '-'}</p>
+
+        <hr>
+        <p><b>தமிழில்: </b>{tamil_status}</p>
+        <p style="font-size:13px; color:#666;">(மேலதிக உதவிக்கு எங்களைத் தொடர்பு கொள்ளவும்.)</p>
+
+        <div style="text-align:center; margin:16px 0;">
+          <a href="{url_for('index', _external=True)}" style="background:#b01357; color:white; padding:10px 18px; text-decoration:none; border-radius:6px;">Visit Our Website</a>
         </div>
       </div>
-      <div style="background:#fafafa; padding:15px; text-align:center; font-size:13px;">
-        © 2025 JAGADHA A to Z Event Management<br>This is an automated message.
+      <div style="background:#fafafa; padding:12px; text-align:center; font-size:12px;">
+        © 2025 JAGADHA A to Z Event Management — Automated message
       </div>
-    </div></body></html>
+    </div>
+    </body></html>
     """
+
+    # prepare attachment if booking_id given
+    attachments = None
+    if booking_id:
+        try:
+            db = get_db()
+            row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+            if row:
+                pdf_bytes = generate_pdf_receipt(row)
+                b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+                attachments = [{"content": b64, "name": f"booking_{booking_id}.pdf"}]
+        except Exception as e:
+            app.logger.exception("PDF generation failed: %s", e)
 
     send_smtp_email = SendSmtpEmail(
         to=to_list,
         sender={"email": admin_email},
-        subject=f"🎉 Booking Confirmation - {name}",
+        subject=f"{status_text} - {name}",
         html_content=html_content,
+        attachment=attachments
     )
 
     try:
         api_instance.send_transac_email(send_smtp_email)
-        app.logger.info("BREVO EMAIL SENT ✓")
+        app.logger.info("BREVO EMAIL SENT ✓ to Admin + Customer")
     except Exception as e:
         app.logger.exception("BREVO ERROR: %s", e)
 
-# ---------------- WHATSAPP (UltraMSG) ----------------
+# ---------------- WHATSAPP (UltraMSG) with Template fallback ----------------
 def send_whatsapp_message(name, phone, event_date, service,
                           extras, location, customer_email, notes):
     instance = os.getenv("W_INSTANCE")
     token = os.getenv("W_TOKEN")
-    if not instance or not token:
-        app.logger.info("WHATSAPP API DISABLED")
+    # Full template message (professional)
+    message_template = (
+        f"🌸 JAGADHA A to Z Event Management 🌸\n\n"
+        f"Booking Update\n"
+        f"Name: {name}\n"
+        f"Phone: {phone}\n"
+        f"Date: {event_date}\n"
+        f"Service: {service}\n"
+        f"Location: {location}\n\n"
+        f"Thank you!"
+    )
+
+    # If UltraMSG configured, try API
+    if instance and token:
+        url = f"https://api.ultramsg.com/{instance}/messages/chat"
+        payload = {"token": token, "to": f"91{phone}", "body": message_template}
+        try:
+            r = requests.post(url, data=payload, timeout=15)
+            app.logger.info("WHATSAPP SENT ✓ %s", r.text)
+            return
+        except Exception as e:
+            app.logger.exception("WHATSAPP API Error, falling back to wa.me: %s", e)
+
+    # Fallback: send email containing wa.me link and use it in admin/customer communication
+    app.logger.info("WHATSAPP API disabled or failed → fallback to wa.me link")
+
+# ---------------- TELEGRAM ADMIN PUSH (for new bookings & daily report) ----------------
+def telegram_push(message):
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        app.logger.info("Telegram disabled — missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
         return
-    url = f"https://api.ultramsg.com/{instance}/messages/chat"
-    message = f"""
-🎉 *Booking Confirmation* 🎉
-📛 *Name:* {name}
-📞 *Phone:* {phone}
-📅 *Event Date:* {event_date}
-🎈 *Service:* {service}
-✨ *Extras:* {extras}
-📍 *Location:* {location}
-📝 *Notes:* {notes}
-"""
-    payload = {"token": token, "to": f"91{phone}", "body": message}
     try:
-        r = requests.post(url, data=payload, timeout=15)
-        app.logger.info("WHATSAPP SENT ✓ %s", r.text)
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {"chat_id": chat_id, "text": message}
+        r = requests.post(url, data=payload, timeout=10)
+        app.logger.info("TELEGRAM PUSH %s", r.text)
     except Exception as e:
-        app.logger.exception("WHATSAPP ERROR: %s", e)
+        app.logger.exception("Telegram push error: %s", e)
+
+# ---------------- Admin daily summary (08:00) ----------------
+def daily_admin_report():
+    try:
+        db = get_db()
+        today = date.today()
+        start = datetime.combine(today, datetime.min.time())
+        rows = db.execute("SELECT status, COUNT(*) as cnt FROM bookings WHERE date(created_at)=? GROUP BY status", (today.isoformat(),)).fetchall()
+        summary = {r["status"]: r["cnt"] for r in rows}
+        total = sum(summary.values())
+        msg = f"Daily Bookings Report ({today.isoformat()})\nTotal: {total}\n"
+        for k, v in summary.items():
+            msg += f"{k}: {v}\n"
+        # send to telegram and email admin
+        telegram_push(msg)
+        # email admin
+        send_email_via_brevo("Admin", "-", "-", today.isoformat(), "-", "-", msg, customer_email=None, status="Daily Report")
+    except Exception as e:
+        app.logger.exception("daily_admin_report error: %s", e)
+
+# start scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(daily_admin_report, 'cron', hour=8, minute=0)  # 08:00 server time
+scheduler.start()
 
 # ---------------- Utility ----------------
 def render_with_values(message, category="danger", **kwargs):
@@ -209,7 +351,7 @@ def book():
             return render_with_values("⚠ Select Additional Services!", name=name)
 
         db = get_db()
-        db.execute(
+        cur = db.execute(
             """
             INSERT INTO bookings (name, location, phone, event_date, service, extras, notes, customer_email)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -217,22 +359,45 @@ def book():
             (name, location, phone, event_date, service, extras, notes, customer_email),
         )
         db.commit()
+        booking_id = cur.lastrowid
 
-        # Notifications (Thread)
-        threading.Thread(
-            target=lambda: (
-                send_email_via_brevo(name, location, phone, event_date,
-                                     service, extras, notes, customer_email, whatsapp_link),
-                send_whatsapp_message(name, phone, event_date, service,
-                                      extras, location, customer_email, notes)
-            ),
-            daemon=True,
-        ).start()
+        # Background notifications
+        def notify():
+            try:
+                # always send admin+customer email (Pending)
+                send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email, status="Pending", booking_id=booking_id)
+                # send whatsapp (try)
+                send_whatsapp_message(name, phone, event_date, service, extras, location, customer_email, notes)
+                # telegram push for admin
+                telegram_push(f"New booking #{booking_id}: {name} — {service} on {event_date}")
+            except Exception:
+                app.logger.exception("Notification error")
 
-        flash("✅ Booking submitted successfully!", "success")
-        return redirect(url_for("book"))
+        threading.Thread(target=notify, daemon=True).start()
+
+        # redirect to a friendly booking success page (with id & download link)
+        return redirect(url_for("booking_success", booking_id=booking_id))
 
     return render_template("book.html")
+
+@app.route("/booking/<int:booking_id>")
+def booking_success(booking_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+    if not row:
+        flash("Booking not found", "danger")
+        return redirect(url_for("index"))
+    return render_template("booking_success.html", booking=row)
+
+@app.route("/receipt/<int:booking_id>")
+def download_receipt(booking_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+    if not row:
+        flash("Booking not found", "danger")
+        return redirect(url_for("index"))
+    pdf_bytes = generate_pdf_receipt(row)
+    return Response(pdf_bytes, mimetype='application/pdf', headers={"Content-Disposition":f"attachment;filename=booking_{booking_id}.pdf"})
 
 # ---------------- ADMIN & DASHBOARD ----------------
 @app.route("/admin")
@@ -252,7 +417,6 @@ def admin_dashboard():
 @app.route("/api/bookings")
 def api_bookings():
     if not session.get("admin"):
-        # keep data private; allow only admin (you can relax this if needed)
         return jsonify({"bookings":[]})
     rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
     bookings = []
@@ -277,7 +441,6 @@ def api_bookings():
 def export_csv():
     if not session.get("admin"):
         return redirect(url_for("login"))
-
     rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
     si = io.StringIO()
     cw = csv.writer(si)
@@ -328,7 +491,7 @@ def confirm_booking(booking_id):
         msg = f"🎉 Your booking for {row['event_date']} is CONFIRMED!"
         send_sms_fast2sms(row["phone"], msg)
         send_whatsapp_message(row["name"], row["phone"], row["event_date"], row["service"], row["extras"], row["location"], row["customer_email"], row["notes"])
-        send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], row["notes"], row["customer_email"])
+        send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], row["notes"], row["customer_email"], status="Confirmed", booking_id=booking_id)
     except Exception as e:
         app.logger.exception("Error sending confirmation notifications: %s", e)
     flash("Booking Confirmed ✓", "success")
@@ -348,13 +511,13 @@ def reject_booking(booking_id):
     try:
         msg = f"❌ Sorry, your booking on {row['event_date']} was rejected."
         send_sms_fast2sms(row["phone"], msg)
-        send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], f"Your booking was rejected.", row["customer_email"])
+        send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], f"Your booking was rejected.", row["customer_email"], status="Rejected", booking_id=booking_id)
     except Exception as e:
         app.logger.exception("Error sending rejection notifications: %s", e)
     flash("Booking Rejected ❌", "warning")
     return redirect(url_for("admin_dashboard"))
 
-# DB fix endpoint (keep for convenience)
+# DB fix endpoint (keeps idempotent)
 @app.route("/fixdb")
 def fixdb():
     db = get_db()
@@ -367,4 +530,7 @@ def fixdb():
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
+    try:
+        app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
+    finally:
+        scheduler.shutdown()
