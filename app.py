@@ -104,12 +104,13 @@ def send_email_via_brevo(name, location, phone, event_date, service,
     configuration.api_key["api-key"] = api_key
     api_instance = TransactionalEmailsApi(ApiClient(configuration))
 
-    # Send to admin + customer (if email provided)
+    # send email to admin always
     to_list = [{"email": admin_email}]
+
+    # also send to customer (if exists)
     if customer_email:
         to_list.append({"email": customer_email})
 
-    # -------------- FIXED HTML CONTENT (Always Runs) --------------
     html_content = f"""<!DOCTYPE html>
 <html>
 <body style="font-family: Arial; background:#f7f7f7; margin:0; padding:0;">
@@ -138,11 +139,11 @@ def send_email_via_brevo(name, location, phone, event_date, service,
       <tr><td><b>📝 Notes:</b></td><td>{notes}</td></tr>
     </table>
 
-    <div style="text-align:center; margin:30px 0;">
+    <div style="text-align:center; margin:25px 0;">
       <a href="{whatsapp_link}"
          style="background:#25D366; color:white; padding:12px 25px;
-                text-decoration:none; border-radius:6px; font-size:16px;">
-         💬 Chat on WhatsApp
+                text-decoration:none; border-radius:6px;">
+         Chat on WhatsApp
       </a>
     </div>
 
@@ -164,7 +165,6 @@ def send_email_via_brevo(name, location, phone, event_date, service,
 </html>
 """
 
-    # ------------------- SEND EMAIL -------------------
     send_smtp_email = SendSmtpEmail(
         to=to_list,
         sender={"email": admin_email},
@@ -179,7 +179,6 @@ def send_email_via_brevo(name, location, phone, event_date, service,
         print("BREVO ERROR:", e)
 
 
-
 # ---------------- WHATSAPP (UltraMSG or Free Link) ----------------
 def send_whatsapp_message(name, phone, event_date, service,
                           extras, location, customer_email, notes):
@@ -187,24 +186,34 @@ def send_whatsapp_message(name, phone, event_date, service,
     instance = os.getenv("W_INSTANCE")
     token = os.getenv("W_TOKEN")
 
+    # If paid WhatsApp API is not active → skip API, still show link in logs
     if not instance or not token:
-        print("WHATSAPP API DISABLED")
+        print("WHATSAPP API DISABLED → Using WhatsApp link only")
+        print(f"FREE LINK: https://wa.me/91{phone}?text=Hello%20JAGADHA")
         return
 
     url = f"https://api.ultramsg.com/{instance}/messages/chat"
 
     message = f"""
 🎉 *Booking Confirmation* 🎉
+
 📛 *Name:* {name}
 📞 *Phone:* {phone}
+📧 *Email:* {customer_email or "Not Provided"}
 📅 *Event Date:* {event_date}
 🎈 *Service:* {service}
 ✨ *Extras:* {extras}
 📍 *Location:* {location}
 📝 *Notes:* {notes}
+
+❤️ Thank you for choosing *JAGADHA A to Z Event Management*! ❤️
 """
 
-    payload = {"token": token, "to": f"91{phone}", "body": message}
+    payload = {
+        "token": token,
+        "to": f"91{phone}",
+        "body": message
+    }
 
     try:
         r = requests.post(url, data=payload)
@@ -212,12 +221,10 @@ def send_whatsapp_message(name, phone, event_date, service,
     except Exception as e:
         print("WHATSAPP ERROR:", e)
 
-
 # ---------------- Utility ----------------
 def render_with_values(message, category="danger", **kwargs):
     flash(message, category)
     return render_template("book.html", **kwargs)
-
 
 # ---------------- ROUTES ----------------
 
