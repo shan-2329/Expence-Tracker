@@ -1,125 +1,274 @@
 <!-- templates/admin_dashboard.html -->
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Admin Dashboard — JAGADHA</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <style>
-    body { padding:20px; background: linear-gradient(120deg,#fff3f8,#fff); font-family:Montserrat, sans-serif;}
-    .card { margin-bottom:18px; }
-    .table-responsive { max-height:420px; overflow:auto; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard – JAGADHA 💗 A to Z</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background: #f8f9fc;
+            font-family: "Nunito", sans-serif;
+        }
+
+        .dashboard-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #d4af37;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .card-stats {
+            border-left: 6px solid #d4af37;
+            transition: 0.2s;
+        }
+        .card-stats:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 18px rgba(212,175,55,0.25);
+        }
+
+        .filter-section {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }
+
+        .pagination button {
+            border-radius: 8px;
+            padding: 6px 12px;
+        }
+
+        table thead {
+            background: #fff7df;
+            color: #8b6f00;
+            font-weight: 700;
+        }
+
+        table tbody tr:hover {
+            background: #fff9ea;
+        }
+    </style>
 </head>
+
 <body>
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Admin Dashboard</h3>
-    <div>
-      <a href="/admin" class="btn btn-outline-secondary">Admin Table</a>
-      <a href="/export_csv" class="btn btn-primary">Export CSV</a>
-      <a href="/logout" class="btn btn-danger">Logout</a>
-    </div>
-  </div>
 
-  <div class="row">
-    <div class="col-md-6">
-      <div class="card p-3">
-        <h6>Bookings by Status</h6>
-        <canvas id="statusChart"></canvas>
-      </div>
+<div class="container mt-4">
+
+    <div class="dashboard-title">📊 Admin Dashboard – Analytics & Reports</div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="row g-3" id="summaryCards"></div>
+
+    <!-- FILTER SECTION -->
+    <div class="filter-section mt-4">
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <input id="searchInput" type="text" placeholder="Search by name, phone, location…" class="form-control">
+            </div>
+
+            <div class="col-md-3">
+                <select id="statusFilter" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Rejected">Rejected</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <select id="serviceFilter" class="form-select">
+                    <option value="">All Services</option>
+                </select>
+            </div>
+
+        </div>
     </div>
 
-    <div class="col-md-6">
-      <div class="card p-3">
-        <h6>Bookings Last 7 Days</h6>
-        <canvas id="weekChart"></canvas>
-      </div>
+    <!-- TABLE -->
+    <div class="table-responsive mt-4">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>#</th><th>Name</th><th>Phone</th><th>Service</th><th>Date</th>
+                    <th>Status</th><th>Location</th><th>Email</th>
+                </tr>
+            </thead>
+            <tbody id="bookingTable"></tbody>
+        </table>
     </div>
-  </div>
 
-  <div class="card p-3">
-    <div class="mb-2 d-flex justify-content-between">
-      <input id="filter" placeholder="Filter by name/phone/service/location" class="form-control w-50" />
-      <div>
-        <button id="refreshBtn" class="btn btn-sm btn-outline-primary">Refresh</button>
-      </div>
+    <!-- PAGINATION -->
+    <div class="d-flex justify-content-center mt-3">
+        <button id="prevPage" class="btn btn-outline-secondary me-2">Previous</button>
+        <span id="pageNumber" class="mt-2 fw-bold"></span>
+        <button id="nextPage" class="btn btn-outline-secondary ms-2">Next</button>
     </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered" id="dashTable">
-        <thead>
-          <tr><th>#</th><th>Name</th><th>Phone</th><th>Service</th><th>Date</th><th>Status</th><th>Actions</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+
+    <!-- CHART ROW -->
+    <div class="row mt-5">
+        <div class="col-md-6"><canvas id="statusChart"></canvas></div>
+        <div class="col-md-6"><canvas id="serviceChart"></canvas></div>
     </div>
-  </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12"><canvas id="monthlyChart"></canvas></div>
+    </div>
+
+</div>
 
 <script>
-async function loadData(){
-  const res = await fetch('/api/bookings');
-  const json = await res.json();
-  return json.bookings || [];
+let bookings = [];
+let filtered = [];
+let currentPage = 1;
+const perPage = 10;
+
+// Load Data
+async function loadData() {
+    const res = await fetch("/api/bookings");
+    const data = await res.json();
+    bookings = data.bookings || [];
+    filtered = bookings;
+    loadServices();
+    updateSummary();
+    renderTable();
+    updateCharts();
 }
 
-function renderTable(rows){
-  const tbody = document.querySelector('#dashTable tbody');
-  tbody.innerHTML = '';
-  rows.forEach((r,i)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.id}</td>
-      <td>${r.name}</td>
-      <td>${r.phone}</td>
-      <td>${r.service}</td>
-      <td>${r.event_date}</td>
-      <td>${r.status}</td>
-      <td>
-        <a class="btn btn-sm btn-success" href="/confirm/${r.id}">Confirm</a>
-        <a class="btn btn-sm btn-warning" href="/reject/${r.id}">Reject</a>
-        <a class="btn btn-sm btn-danger" href="/delete/${r.id}">Delete</a>
-        <a class="btn btn-sm btn-secondary" href="/receipt/${r.id}" target="_blank">PDF</a>
-      </td>`;
-    tbody.appendChild(tr);
-  });
+// Summary Cards
+function updateSummary() {
+    const total = bookings.length;
+    const confirmed = bookings.filter(x => x.status === 'Confirmed').length;
+    const pending = bookings.filter(x => x.status === 'Pending').length;
+    const rejected = bookings.filter(x => x.status === 'Rejected').length;
+
+    document.getElementById("summaryCards").innerHTML = `
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Total Bookings</h6><h3>${total}</h3></div></div>
+
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Confirmed</h6><h3>${confirmed}</h3></div></div>
+
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Pending</h6><h3>${pending}</h3></div></div>
+
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Rejected</h6><h3>${rejected}</h3></div></div>
+    `;
 }
 
-function drawStatusChart(rows){
-  const counts = {};
-  rows.forEach(r => counts[r.status] = (counts[r.status]||0)+1);
-  const labels = Object.keys(counts);
-  const data = labels.map(l=>counts[l]);
-  const ctx = document.getElementById('statusChart').getContext('2d');
-  if(window._statusChart) window._statusChart.destroy();
-  window._statusChart = new Chart(ctx, {type:'doughnut', data:{labels, datasets:[{data}]}, options:{responsive:true}});
+// Load unique service list
+function loadServices() {
+    let services = [...new Set(bookings.map(b => b.service))].sort();
+    let html = `<option value="">All Services</option>`;
+    services.forEach(s => html += `<option value="${s}">${s}</option>`);
+    document.getElementById("serviceFilter").innerHTML = html;
 }
 
-function drawWeekChart(rows){
-  // last 7 days
-  const days = [];
-  for(let i=6;i>=0;i--){
-    const d = new Date(); d.setDate(d.getDate()-i);
-    days.push(d.toISOString().slice(0,10));
-  }
-  const counts = days.map(day => rows.filter(r=>r.created_at && r.created_at.startsWith(day)).length);
-  const ctx = document.getElementById('weekChart').getContext('2d');
-  if(window._weekChart) window._weekChart.destroy();
-  window._weekChart = new Chart(ctx, {type:'bar', data:{labels:days, datasets:[{label:'Bookings', data:counts}]}, options:{responsive:true}});
+// Render Table
+function renderTable() {
+    let start = (currentPage - 1) * perPage;
+    let end = start + perPage;
+    let pageData = filtered.slice(start, end);
+
+    let html = "";
+    pageData.forEach((b, i) => {
+        html += `
+        <tr>
+            <td>${start + i + 1}</td>
+            <td>${b.name}</td>
+            <td>${b.phone}</td>
+            <td>${b.service}</td>
+            <td>${b.event_date}</td>
+            <td>${b.status}</td>
+            <td>${b.location}</td>
+            <td>${b.customer_email || "-"}</td>
+        </tr>`;
+    });
+
+    document.getElementById("bookingTable").innerHTML = html;
+    document.getElementById("pageNumber").innerText = `Page ${currentPage}`;
 }
 
-async function refreshAll(){
-  const rows = await loadData();
-  renderTable(rows);
-  drawStatusChart(rows);
-  drawWeekChart(rows);
+// Search & Filters
+function applyFilters() {
+    let q = document.getElementById("searchInput").value.toLowerCase();
+    let status = document.getElementById("statusFilter").value;
+    let svc = document.getElementById("serviceFilter").value;
+
+    filtered = bookings.filter(b =>
+        (b.name.toLowerCase().includes(q) ||
+         b.phone.includes(q) ||
+         b.location.toLowerCase().includes(q)) &&
+        (status ? b.status === status : true) &&
+        (svc ? b.service === svc : true)
+    );
+
+    currentPage = 1;
+    renderTable();
+    updateCharts();
 }
-document.getElementById('refreshBtn').addEventListener('click', refreshAll);
-document.getElementById('filter').addEventListener('keyup', async function(){
-  const val = this.value.toLowerCase();
-  const rows = await loadData();
-  renderTable(rows.filter(r=> (r.name||'').toLowerCase().includes(val) || (r.phone||'').toLowerCase().includes(val) || (r.service||'').toLowerCase().includes(val) || (r.location||'').toLowerCase().includes(val) ));
-});
-refreshAll();
+
+// Pagination
+document.getElementById("prevPage").onclick = () => {
+    if (currentPage > 1) { currentPage--; renderTable(); }
+};
+document.getElementById("nextPage").onclick = () => {
+    if ((currentPage * perPage) < filtered.length) {
+        currentPage++; renderTable();
+    }
+};
+
+// Charts
+function updateCharts() {
+    let statuses = {Pending:0, Confirmed:0, Rejected:0};
+    filtered.forEach(b => statuses[b.status]++);
+
+    new Chart(document.getElementById("statusChart"), {
+        type: 'pie',
+        data: {
+            labels: ["Pending", "Confirmed", "Rejected"],
+            datasets: [{ data: [statuses.Pending, statuses.Confirmed, statuses.Rejected] }]
+        }
+    });
+
+    let serviceCounts = {};
+    filtered.forEach(b => serviceCounts[b.service] = (serviceCounts[b.service] || 0) + 1);
+
+    new Chart(document.getElementById("serviceChart"), {
+        type: 'bar',
+        data: {
+            labels: Object.keys(serviceCounts),
+            datasets: [{ data: Object.values(serviceCounts) }]
+        }
+    });
+
+    let monthCounts = {};
+    filtered.forEach(b => {
+        let m = b.event_date.slice(0, 7);
+        monthCounts[m] = (monthCounts[m] || 0) + 1;
+    });
+
+    new Chart(document.getElementById("monthlyChart"), {
+        type: 'line',
+        data: {
+            labels: Object.keys(monthCounts),
+            datasets: [{ data: Object.values(monthCounts), tension: 0.4 }]
+        }
+    });
+}
+
+document.getElementById("searchInput").onkeyup = applyFilters;
+document.getElementById("statusFilter").onchange = applyFilters;
+document.getElementById("serviceFilter").onchange = applyFilters;
+
+loadData();
 </script>
 
 </body>
