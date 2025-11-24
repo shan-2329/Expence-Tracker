@@ -30,6 +30,9 @@ app = Flask(__name__, template_folder=str(BASE / "templates"), static_folder=str
 app.secret_key = os.getenv("SECRET_KEY", "change_this_secret_key")
 app.config["DATABASE"] = str(DB_PATH)
 
+# Optional: provide SITE_URL env var (e.g. https://your-domain.com) to build absolute links in emails
+SITE_URL = os.getenv("SITE_URL")
+
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
@@ -146,14 +149,18 @@ def send_email_via_brevo(
     """
     Send booking email using BREVO to both ADMIN and Customer (if available).
     Includes Tamil translation + PDF receipt (when booking_id is provided).
-    FIXED: url_for now works inside threads by using app.app_context().
+    Safe URL building: uses SITE_URL env if provided; otherwise tries url_for inside app context; falls back to localhost.
     """
-
-    # ------------------------------
-    # FIX: url_for must run inside app.app_context()
-    # ------------------------------
-    with app.app_context():
-        website_link = url_for('index', _external=True)
+    # website link resolution (safe outside request)
+    website_link = SITE_URL
+    if not website_link:
+        try:
+            with app.app_context():
+                # url_for will require SERVER_NAME if no request; wrap in try/except
+                from flask import url_for as _url_for
+                website_link = _url_for('index', _external=True)
+        except Exception:
+            website_link = os.getenv("SITE_URL", "http://localhost:5000")
 
     api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
@@ -183,11 +190,9 @@ def send_email_via_brevo(
         "Pending": "உங்கள் முன்பதிவு பெறப்பட்டது",
         "Confirmed": "உங்கள் முன்பதிவு உறுதிசெய்யப்பட்டது",
         "Rejected": "மன்னிக்கவும் — உங்கள் முன்பதிவு நிராகரிக்கப்பட்டது"
-    }.get(status, "உத்தரவு நிலை")
+    }.get(status, "நிலையை புதுப்பித்தல்")
 
-    # ---------------------------------------------------
     # EMAIL HTML TEMPLATE
-    # ---------------------------------------------------
     html_content = f"""
     <!DOCTYPE html><html><body style="font-family: Arial, sans-serif; background:#f7f7f7; margin:0; padding:0;">
     <div style="max-width:600px; margin:18px auto; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
@@ -225,31 +230,23 @@ def send_email_via_brevo(
     </body></html>
     """
 
-    # ---------------------------------------------------
     # PDF ATTACHMENT HANDLING
-    # ---------------------------------------------------
     attachments = None
-
     if booking_id:
         try:
             db = get_db()
             row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
-
             if row:
                 pdf_bytes = generate_pdf_receipt(row)
                 b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-
                 attachments = [{
                     "content": b64,
                     "name": f"booking_{booking_id}.pdf"
                 }]
-
         except Exception as e:
             app.logger.exception("PDF generation failed: %s", e)
 
-    # ---------------------------------------------------
     # SEND EMAIL
-    # ---------------------------------------------------
     send_smtp_email = SendSmtpEmail(
         to=to_list,
         sender={"email": admin_email},
@@ -263,7 +260,6 @@ def send_email_via_brevo(
         app.logger.info("BREVO EMAIL SENT ✓ to Admin + Customer")
     except Exception as e:
         app.logger.exception("BREVO ERROR: %s", e)
-
 
 # ---------------- WHATSAPP (UltraMSG) with Template fallback ----------------
 def send_whatsapp_message(name, phone, event_date, service,
@@ -293,7 +289,7 @@ def send_whatsapp_message(name, phone, event_date, service,
         except Exception as e:
             app.logger.exception("WHATSAPP API Error, falling back to wa.me: %s", e)
 
-    # Fallback: send email containing wa.me link and use it in admin/customer communication
+    # Fallback: log and rely on wa.me links in emails or manual copy
     app.logger.info("WHATSAPP API disabled or failed → fallback to wa.me link")
 
 # ---------------- TELEGRAM ADMIN PUSH (for new bookings & daily report) ----------------
@@ -316,7 +312,6 @@ def daily_admin_report():
     try:
         db = get_db()
         today = date.today()
-        start = datetime.combine(today, datetime.min.time())
         rows = db.execute("SELECT status, COUNT(*) as cnt FROM bookings WHERE date(created_at)=? GROUP BY status", (today.isoformat(),)).fetchall()
         summary = {r["status"]: r["cnt"] for r in rows}
         total = sum(summary.values())
@@ -325,7 +320,7 @@ def daily_admin_report():
             msg += f"{k}: {v}\n"
         # send to telegram and email admin
         telegram_push(msg)
-        # email admin
+        # email admin (use send_email_via_brevo)
         send_email_via_brevo("Admin", "-", "-", today.isoformat(), "-", "-", msg, customer_email=None, status="Daily Report")
     except Exception as e:
         app.logger.exception("daily_admin_report error: %s", e)
@@ -393,9 +388,8 @@ def book():
             - Sends Brevo email (Admin + Customer)
             - Sends WhatsApp confirmation
             - Sends Telegram alert to admin
-            FIXED: All Flask operations safely handled inside thread.
             """
-            with app.app_context():  # IMPORTANT FIX
+            with app.app_context():
                 try:
                     # 1) Always send ADMIN + CUSTOMER email (Pending)
                     send_email_via_brevo(
@@ -404,29 +398,25 @@ def book():
                         status="Pending",
                         booking_id=booking_id
                     )
-
-                    # 2) WhatsApp message
-                    try:
-                        send_whatsapp_message(
-                            name, phone, event_date, service,
-                            extras, location, customer_email, notes
-                        )
-                    except Exception:
-                        app.logger.exception("WhatsApp send failed")
-
-                    # 3) Admin Telegram alert
-                    try:
-                        telegram_push(
-                            f"📩 New Booking #{booking_id}\n"
-                            f"👤 {name}\n"
-                            f"🎈 {service}\n"
-                            f"📅 {event_date}"
-                        )
-                    except Exception:
-                        app.logger.exception("Telegram push failed")
-
                 except Exception:
-                    app.logger.exception("Notification error")
+                    app.logger.exception("Error sending pending email")
+
+                # 2) WhatsApp message (best-effort)
+                try:
+                    send_whatsapp_message(name, phone, event_date, service, extras, location, customer_email, notes)
+                except Exception:
+                    app.logger.exception("WhatsApp send failed")
+
+                # 3) Admin Telegram alert
+                try:
+                    telegram_push(
+                        f"📩 New Booking #{booking_id}\n"
+                        f"👤 {name}\n"
+                        f"🎈 {service}\n"
+                        f"📅 {event_date}"
+                    )
+                except Exception:
+                    app.logger.exception("Telegram push failed")
 
         threading.Thread(target=notify, daemon=True).start()
 
@@ -477,6 +467,8 @@ def api_bookings():
 
     bookings = []
     for r in rows:
+        # safe access to status (backwards compatible)
+        status = r["status"] if "status" in r.keys() else "Pending"
         bookings.append({
             "id": r["id"],
             "name": r["name"],
@@ -487,7 +479,7 @@ def api_bookings():
             "extras": r["extras"],
             "notes": r["notes"],
             "customer_email": r["customer_email"],
-            "status": r["status"] if "status" in r.keys() else "Pending",
+            "status": status,
             "created_at": r["created_at"],
         })
 
@@ -541,13 +533,21 @@ def confirm_booking(booking_id):
     if not row:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
-    db.execute("UPDATE bookings SET status='Confirmed' WHERE id=?", (booking_id,))
-    db.commit()
+    # Attempt update; if status column missing, tell user to run /fixdb
+    try:
+        db.execute("UPDATE bookings SET status='Confirmed' WHERE id=?", (booking_id,))
+        db.commit()
+    except sqlite3.OperationalError as e:
+        app.logger.exception("DB update failed: %s", e)
+        flash("Database missing 'status' column. Visit /fixdb to add it.", "danger")
+        return redirect(url_for("admin_dashboard"))
+
     # notifications
     try:
         msg = f"🎉 Your booking for {row['event_date']} is CONFIRMED!"
         send_sms_fast2sms(row["phone"], msg)
         send_whatsapp_message(row["name"], row["phone"], row["event_date"], row["service"], row["extras"], row["location"], row["customer_email"], row["notes"])
+        # send email to admin + customer with attachment
         send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], row["notes"], row["customer_email"], status="Confirmed", booking_id=booking_id)
     except Exception as e:
         app.logger.exception("Error sending confirmation notifications: %s", e)
@@ -563,8 +563,14 @@ def reject_booking(booking_id):
     if not row:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
-    db.execute("UPDATE bookings SET status='Rejected' WHERE id=?", (booking_id,))
-    db.commit()
+    try:
+        db.execute("UPDATE bookings SET status='Rejected' WHERE id=?", (booking_id,))
+        db.commit()
+    except sqlite3.OperationalError as e:
+        app.logger.exception("DB update failed: %s", e)
+        flash("Database missing 'status' column. Visit /fixdb to add it.", "danger")
+        return redirect(url_for("admin_dashboard"))
+
     try:
         msg = f"❌ Sorry, your booking on {row['event_date']} was rejected."
         send_sms_fast2sms(row["phone"], msg)
@@ -590,4 +596,7 @@ if __name__ == "__main__":
     try:
         app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
     finally:
-        scheduler.shutdown()
+        try:
+            scheduler.shutdown()
+        except Exception:
+            pass
