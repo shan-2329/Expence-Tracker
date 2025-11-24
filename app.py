@@ -418,7 +418,9 @@ def admin_dashboard():
 def api_bookings():
     if not session.get("admin"):
         return jsonify({"bookings":[]})
+
     rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
+
     bookings = []
     for r in rows:
         bookings.append({
@@ -431,9 +433,10 @@ def api_bookings():
             "extras": r["extras"],
             "notes": r["notes"],
             "customer_email": r["customer_email"],
-            "status": r["status"],
+            "status": r["status"] if "status" in r.keys() else "Pending",
             "created_at": r["created_at"],
         })
+
     return jsonify({"bookings": bookings})
 
 # CSV export
