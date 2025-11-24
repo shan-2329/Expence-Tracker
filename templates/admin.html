@@ -55,17 +55,6 @@
             right: 20px;
         }
 
-        .page-btn {
-            padding: 6px 14px;
-            border-radius: 8px;
-            background: #d63384;
-            color: white;
-            border: none;
-        }
-        .page-btn:disabled {
-            background: #aaa;
-        }
-
         #search {
             border: 2px solid #d63384;
             border-radius: 10px;
@@ -76,6 +65,20 @@
             margin: 1px;
             padding: 4px 10px;
         }
+
+        .event-img {
+            width: 70px;
+            display: block;
+            margin: 15px auto;
+        }
+
+        .page-btn {
+            padding: 6px 14px;
+            border-radius: 8px;
+            background: #d63384;
+            color: white;
+            border: none;
+        }
     </style>
 </head>
 
@@ -85,13 +88,16 @@
 
 <div class="container mt-4">
 
+    <img src="https://cdn-icons-png.flaticon.com/512/3081/3081559.png" class="event-img">
+
     <div class="admin-title">📋 Booking Records – Admin Panel</div>
 
     <!-- SEARCH BAR -->
-    <div class="my-3 text-center">
-        <input id="search" type="text" class="form-control w-75 mx-auto"
+    <form method="GET" action="/admin" class="my-3 text-center">
+        <input id="search" type="text" name="search" value="{{ search }}"
+               class="form-control w-75 mx-auto"
                placeholder="Search Name / Phone / Location / Service">
-    </div>
+    </form>
 
     <div class="table-wrapper">
 
@@ -120,7 +126,7 @@
                 <tbody id="tableBody">
                     {% for row in bookings %}
                     <tr>
-                        <td>{{ loop.index }}</td>
+                        <td>{{ row.id }}</td>
                         <td>{{ row.name }}</td>
                         <td>{{ row.phone }}</td>
                         <td>{{ row.location }}</td>
@@ -161,8 +167,17 @@
 
         <!-- PAGINATION -->
         <div class="d-flex justify-content-between mt-3">
-            <button id="prevBtn" class="page-btn" onclick="prevPage()">Previous</button>
-            <button id="nextBtn" class="page-btn" onclick="nextPage()">Next</button>
+            {% if page > 1 %}
+            <a href="/admin?page={{ page-1 }}&search={{ search }}" class="page-btn">⬅ Previous</a>
+            {% else %}
+            <button class="page-btn" disabled>⬅ Previous</button>
+            {% endif %}
+
+            {% if has_more %}
+            <a href="/admin?page={{ page+1 }}&search={{ search }}" class="page-btn">Next ➡</a>
+            {% else %}
+            <button class="page-btn" disabled>Next ➡</button>
+            {% endif %}
         </div>
 
         {% endif %}
@@ -170,48 +185,6 @@
 </div>
 
 <script>
-/* ------------------------- SEARCH FILTER ------------------------- */
-document.getElementById("search").addEventListener("keyup", function() {
-    let value = this.value.toLowerCase();
-    let rows = document.querySelectorAll("#tableBody tr");
-
-    rows.forEach(row => {
-        row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
-    });
-});
-
-
-/* ------------------------- PAGINATION ---------------------------- */
-let currentPage = 1;
-let rowsPerPage = 7;
-
-function showPage(page) {
-    let table = document.getElementById("tableBody");
-    let rows = table.rows;
-
-    let start = (page - 1) * rowsPerPage;
-    let end = start + rowsPerPage;
-
-    for (let i = 0; i < rows.length; i++) {
-        rows[i].style.display = (i >= start && i < end) ? "" : "none";
-    }
-
-    document.getElementById("prevBtn").disabled = page === 1;
-    document.getElementById("nextBtn").disabled = end >= rows.length;
-}
-
-function nextPage() {
-    currentPage++;
-    showPage(currentPage);
-}
-function prevPage() {
-    currentPage--;
-    showPage(currentPage);
-}
-
-showPage(currentPage);
-
-
 /* ------------------------- DELETE BOOKING ------------------------ */
 function deleteBooking(id) {
     Swal.fire({

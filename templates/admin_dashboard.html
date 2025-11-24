@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Dashboard – JAGADHA 💗 A to Z</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg-dark: #111014;
+      --panel: #1a0f14;
+      --accent: #d63384; /* dark pink */
+      --muted: #f4f1f5;
+      --card: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+
+    html,body{height:100%; margin:0; font-family: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+
+    body{
+      background: radial-gradient(1200px 500px at 10% 10%, rgba(214,51,132,0.08), transparent 8%),
+                  radial-gradient(900px 400px at 90% 80%, rgba(176,27,87,0.06), transparent 8%),
+                  #0f0b0d;
+      color: var(--muted);
+    }
+
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:18px 28px; border-bottom:1px solid rgba(255,255,255,0.04);
+      background: linear-gradient(90deg, rgba(0,0,0,0.2), rgba(0,0,0,0.08));
+      position: sticky; top:0; z-index: 20;
+    }
+    .brand { font-family: "Playfair Display", serif; color:var(--accent); font-size:1.25rem; font-weight:700; }
+    .controls { display:flex; gap:10px; align-items:center; }
+
+    .container-main { max-width:1200px; margin:22px auto; padding:12px; }
+
+    .grid {
+      display:grid; grid-template-columns: 1fr 380px; gap:18px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius:12px;
+      padding:16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .kpi { display:flex; gap:12px; }
+    .kpi .item { flex:1; padding:12px; border-radius:10px; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); }
+    .kpi .value { font-size:1.4rem; font-weight:700; color:#fff; }
+    .kpi .label { color: rgba(255,255,255,0.6); font-size:0.85rem; }
+
+    .recent-list { max-height:420px; overflow:auto; gap:10px; display:flex; flex-direction:column; }
+    .recent-item { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px; border-radius:8px; background: rgba(255,255,255,0.02); }
+    .recent-item .meta { font-size:0.9rem; color:var(--muted); }
+    .recent-item .actions button { margin-left:6px; }
+
+    .searchbar { display:flex; gap:8px; align-items:center; }
+    .searchbar input { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); color:var(--muted); }
+
+    .table-responsive { max-height:420px; overflow:auto; margin-top:12px; }
+
+    .btn-accent { background: var(--accent); color:#fff; border:0; }
+    .btn-light-muted { background: rgba(255,255,255,0.04); color:var(--muted); border:0; }
+
+    footer.small { text-align:center; color:rgba(255,255,255,0.4); margin-top:18px; }
+
+    /* responsive */
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .container-main { padding:8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">💗 JAGADHA Admin</div>
+
+    <div class="controls">
+      <!-- Link to uploaded .env (local path provided in your project) -->
+      <a href="file:///mnt/data/JAGADHA 💗 A to Z 💗 Event Management.env" target="_blank"
+         class="btn btn-light-muted" title="Local .env file">Download .env</a>
+
+      <a href="/admin" class="btn btn-light-muted">Old Admin</a>
+      <a href="/logout" class="btn btn-danger">Logout</a>
+    </div>
+  </div>
+
+  <div class="container-main">
+    <div class="grid">
+      <!-- LEFT: dashboard main -->
+      <div>
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h4 style="margin:0; color:#fff">Dashboard</h4>
+              <small style="color:rgba(255,255,255,0.6)">Overview & quick actions</small>
+            </div>
+
+            <div class="searchbar">
+              <input id="globalSearch" class="form-control form-control-sm" placeholder="Search bookings (name / phone / service)" style="min-width:260px;">
+              <button id="exportBtn" class="btn btn-accent btn-sm">Export CSV</button>
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="kpi">
+            <div class="item">
+              <div class="value" id="totalCount">0</div>
+              <div class="label">Total Bookings</div>
+            </div>
+            <div class="item">
+              <div class="value" id="confirmedCount">0</div>
+              <div class="label">Confirmed</div>
+            </div>
+            <div class="item">
+              <div class="value" id="pendingCount">0</div>
+              <div class="label">Pending</div>
+            </div>
+            <div class="item">
+              <div class="value" id="rejectedCount">0</div>
+              <div class="label">Rejected</div>
+            </div>
+          </div>
+
+          <div style="height:14px"></div>
+
+          <div style="display:flex; gap:14px; align-items:stretch;">
+            <div style="flex:1;">
+              <canvas id="dailyChart" height="200"></canvas>
+            </div>
+            <div style="width:260px;">
+              <canvas id="serviceChart" height="200"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Recent table -->
+        <div class="card mt-3">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h5 style="margin:0">Recent Bookings</h5>
+              <small style="color:rgba(255,255,255,0.6)">Latest 200 entries</small>
+            </div>
+            <div>
+              <button class="btn btn-light-muted btn-sm" id="refreshBtn">Refresh</button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm table-borderless text-white mb-0" id="recentTable">
+              <thead style="color:rgba(255,255,255,0.65);">
+                <tr>
+                  <th>#</th><th>Name</th><th>Phone</th><th>Date</th><th>Service</th><th>Status</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recentBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <footer class="small">Tip: use Confirm / Reject buttons to notify customers via SMS/WhatsApp and update status.</footer>
+      </div>
+
+      <!-- RIGHT: sidebar -->
+      <aside>
+        <div class="card">
+          <h6 style="margin-top:0">Quick Actions</h6>
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+            <a id="openBook" href="/book" class="btn btn-accent btn-sm">New Booking Form</a>
+            <a id="openOldAdmin" href="/admin" class="btn btn-light-muted btn-sm">Classic Admin</a>
+            <a id="exportCsv" href="/export_csv" class="btn btn-light-muted btn-sm">Export CSV</a>
+            <button id="fixdbBtn" class="btn btn-light-muted btn-sm">Fix DB (add status)</button>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <h6 style="margin:0 0 8px 0">Recent Activity</h6>
+          <div id="activityList" class="recent-list">
+            <div class="recent-item"><div class="meta">Loading...</div></div>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+  </div>
+
+<script>
+  const API = "/api/bookings";
+
+  async function fetchBookings() {
+    const res = await fetch(API);
+    if (!res.ok) return {bookings:[]};
+    return res.json();
+  }
+
+  function formatDate(d) {
+    if(!d) return "";
+    return new Date(d).toLocaleString();
+  }
+
+  function renderKPIs(rows) {
+    const total = rows.length;
+    const confirmed = rows.filter(r => r.status === "Confirmed").length;
+    const rejected = rows.filter(r => r.status === "Rejected").length;
+    const pending = total - confirmed - rejected;
+
+    document.getElementById("totalCount").innerText = total;
+    document.getElementById("confirmedCount").innerText = confirmed;
+    document.getElementById("rejectedCount").innerText = rejected;
+    document.getElementById("pendingCount").innerText = pending;
+  }
+
+  function buildDailySeries(rows) {
+    // count per date (yyyy-mm-dd)
+    const map = {};
+    rows.forEach(r => {
+      const d = r.event_date ? r.event_date.split("T")[0] : (r.event_date || r.created_at?.split("T")[0]);
+      if(!d) return;
+      map[d] = (map[d]||0)+1;
+    });
+    const labels = Object.keys(map).sort();
+    const data = labels.map(l => map[l]);
+    return {labels,data};
+  }
+
+  function buildServiceDistribution(rows) {
+    const map = {};
+    rows.forEach(r => {
+      const s = r.service || "Unknown";
+      map[s] = (map[s]||0)+1;
+    });
+    const labels = Object.keys(map).slice(0,12);
+    const data = labels.map(l => map[l]);
+    return {labels,data};
+  }
+
+  let dailyChart=null, serviceChart=null;
+
+  async function drawCharts(rows) {
+    const daily = buildDailySeries(rows);
+    const service = buildServiceDistribution(rows);
+
+    const ctx1 = document.getElementById("dailyChart").getContext("2d");
+    if(dailyChart) dailyChart.destroy();
+    dailyChart = new Chart(ctx1, {
+      type:'line',
+      data:{ labels: daily.labels, datasets:[ { label:'Bookings/day', data: daily.data, tension:0.3, fill:true, backgroundColor:'rgba(214,51,132,0.12)', borderColor:'#d63384' } ] },
+      options:{ responsive:true, plugins:{ legend:{ display:false } } }
+    });
+
+    const ctx2 = document.getElementById("serviceChart").getContext("2d");
+    if(serviceChart) serviceChart.destroy();
+    serviceChart = new Chart(ctx2, {
+      type:'doughnut',
+      data:{ labels: service.labels, datasets:[ { data: service.data } ] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ color:'#fff' } } } }
+    });
+  }
+
+  function buildRecentTable(rows) {
+    const body = document.getElementById("recentBody");
+    body.innerHTML = "";
+    rows.slice(0,200).forEach((r,i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td style="min-width:140px">${r.name}</td>
+        <td>${r.phone}</td>
+        <td>${r.event_date || r.created_at}</td>
+        <td>${r.service || ""}</td>
+        <td>${r.status || "Pending"}</td>
+        <td>
+          <div class="btn-group" role="group" aria-label="actions">
+            <button class="btn btn-sm btn-success" onclick="doAction('confirm',${r.id})">✔</button>
+            <button class="btn btn-sm btn-warning" onclick="doAction('reject',${r.id})">✖</button>
+            <button class="btn btn-sm btn-danger" onclick="doAction('delete',${r.id})">🗑</button>
+          </div>
+        </td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  async function refreshAll() {
+    const data = await fetchBookings();
+    const rows = data.bookings || [];
+    renderKPIs(rows);
+    buildRecentTable(rows);
+    drawCharts(rows);
+    const act = document.getElementById("activityList");
+    act.innerHTML = rows.slice(0,8).map(r => `<div class="recent-item"><div class="meta"><strong>${r.name}</strong><div style="font-size:12px;color:rgba(255,255,255,0.6)">${r.service} · ${r.event_date || r.created_at}</div></div></div>`).join("");
+  }
+
+  function doAction(action, id) {
+    if(action === 'delete') {
+      if(!confirm("Delete booking?")) return;
+      window.location.href = `/delete/${id}`;
+    } else if(action === 'confirm') {
+      if(!confirm("Confirm booking? This will send notification.")) return;
+      window.location.href = `/confirm/${id}`;
+    } else if(action === 'reject') {
+      if(!confirm("Reject booking?")) return;
+      window.location.href = `/reject/${id}`;
+    }
+  }
+
+  // search
+  document.getElementById("globalSearch").addEventListener("input", function(){
+    const q = this.value.trim().toLowerCase();
+    const rows = document.querySelectorAll("#recentBody tr");
+    rows.forEach(r => {
+      r.style.display = r.innerText.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+
+  document.getElementById("refreshBtn").addEventListener("click", refreshAll);
+  document.getElementById("exportBtn").addEventListener("click", ()=> window.location.href='/export_csv');
+  document.getElementById("fixdbBtn")?.addEventListener("click", ()=> { if(confirm("Run DB fix (add status column)?")) window.location.href='/fixdb'; });
+
+  // initial load
+  refreshAll();
+</script>
+</body>
+</html>
