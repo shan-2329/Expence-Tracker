@@ -145,9 +145,16 @@ def send_email_via_brevo(
     ):
     """
     Send booking email using BREVO to both ADMIN and Customer (if available).
-    Attaches PDF receipt when booking_id provided.
-    Adds a Tamil translation block after English.
+    Includes Tamil translation + PDF receipt (when booking_id is provided).
+    FIXED: url_for now works inside threads by using app.app_context().
     """
+
+    # ------------------------------
+    # FIX: url_for must run inside app.app_context()
+    # ------------------------------
+    with app.app_context():
+        website_link = url_for('index', _external=True)
+
     api_key = os.getenv("BREVO_API_KEY")
     admin_email = os.getenv("ADMIN_EMAIL")
 
@@ -159,23 +166,28 @@ def send_email_via_brevo(
     configuration.api_key["api-key"] = api_key
     api_instance = TransactionalEmailsApi(ApiClient(configuration))
 
+    # Send to admin + customer
     to_list = [{"email": admin_email}]
     if customer_email and customer_email.strip():
         to_list.append({"email": customer_email.strip()})
 
+    # Status text
     status_text = {
         "Pending": "🎉 Booking Received",
         "Confirmed": "✅ Booking Confirmed",
         "Rejected": "❌ Booking Rejected"
     }.get(status, "🎉 Booking Update")
 
-    # Tamil short translations (you can expand as needed)
+    # Tamil translation
     tamil_status = {
         "Pending": "உங்கள் முன்பதிவு பெறப்பட்டது",
         "Confirmed": "உங்கள் முன்பதிவு உறுதிசெய்யப்பட்டது",
         "Rejected": "மன்னிக்கவும் — உங்கள் முன்பதிவு நிராகரிக்கப்பட்டது"
     }.get(status, "உத்தரவு நிலை")
 
+    # ---------------------------------------------------
+    # EMAIL HTML TEMPLATE
+    # ---------------------------------------------------
     html_content = f"""
     <!DOCTYPE html><html><body style="font-family: Arial, sans-serif; background:#f7f7f7; margin:0; padding:0;">
     <div style="max-width:600px; margin:18px auto; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
@@ -200,10 +212,10 @@ def send_email_via_brevo(
 
         <hr>
         <p><b>தமிழில்: </b>{tamil_status}</p>
-        <p style="font-size:13px; color:#666;">(மேலதிக உதவிக்கு எங்களைத் தொடர்பு கொள்ளவும்.)</p>
+        <p style="font-size:13px; color:#666;">(மேலும் உதவிக்கு எங்களைத் தொடர்பு கொள்ளவும். Mob: 97908 90865)</p>
 
         <div style="text-align:center; margin:16px 0;">
-          <a href="{url_for('index', _external=True)}" style="background:#b01357; color:white; padding:10px 18px; text-decoration:none; border-radius:6px;">Visit Our Website</a>
+          <a href="{website_link}" style="background:#b01357; color:white; padding:10px 18px; text-decoration:none; border-radius:6px;">Visit Our Website</a>
         </div>
       </div>
       <div style="background:#fafafa; padding:12px; text-align:center; font-size:12px;">
@@ -213,19 +225,31 @@ def send_email_via_brevo(
     </body></html>
     """
 
-    # prepare attachment if booking_id given
+    # ---------------------------------------------------
+    # PDF ATTACHMENT HANDLING
+    # ---------------------------------------------------
     attachments = None
+
     if booking_id:
         try:
             db = get_db()
             row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+
             if row:
                 pdf_bytes = generate_pdf_receipt(row)
                 b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-                attachments = [{"content": b64, "name": f"booking_{booking_id}.pdf"}]
+
+                attachments = [{
+                    "content": b64,
+                    "name": f"booking_{booking_id}.pdf"
+                }]
+
         except Exception as e:
             app.logger.exception("PDF generation failed: %s", e)
 
+    # ---------------------------------------------------
+    # SEND EMAIL
+    # ---------------------------------------------------
     send_smtp_email = SendSmtpEmail(
         to=to_list,
         sender={"email": admin_email},
@@ -239,6 +263,7 @@ def send_email_via_brevo(
         app.logger.info("BREVO EMAIL SENT ✓ to Admin + Customer")
     except Exception as e:
         app.logger.exception("BREVO ERROR: %s", e)
+
 
 # ---------------- WHATSAPP (UltraMSG) with Template fallback ----------------
 def send_whatsapp_message(name, phone, event_date, service,
@@ -363,19 +388,48 @@ def book():
 
         # Background notifications
         def notify():
-            try:
-                # always send admin+customer email (Pending)
-                send_email_via_brevo(name, location, phone, event_date, service, extras, notes, customer_email, status="Pending", booking_id=booking_id)
-                # send whatsapp (try)
-                send_whatsapp_message(name, phone, event_date, service, extras, location, customer_email, notes)
-                # telegram push for admin
-                telegram_push(f"New booking #{booking_id}: {name} — {service} on {event_date}")
-            except Exception:
-                app.logger.exception("Notification error")
+            """
+            Background async notifier:
+            - Sends Brevo email (Admin + Customer)
+            - Sends WhatsApp confirmation
+            - Sends Telegram alert to admin
+            FIXED: All Flask operations safely handled inside thread.
+            """
+            with app.app_context():  # IMPORTANT FIX
+                try:
+                    # 1) Always send ADMIN + CUSTOMER email (Pending)
+                    send_email_via_brevo(
+                        name, location, phone, event_date,
+                        service, extras, notes, customer_email,
+                        status="Pending",
+                        booking_id=booking_id
+                    )
+
+                    # 2) WhatsApp message
+                    try:
+                        send_whatsapp_message(
+                            name, phone, event_date, service,
+                            extras, location, customer_email, notes
+                        )
+                    except Exception:
+                        app.logger.exception("WhatsApp send failed")
+
+                    # 3) Admin Telegram alert
+                    try:
+                        telegram_push(
+                            f"📩 New Booking #{booking_id}\n"
+                            f"👤 {name}\n"
+                            f"🎈 {service}\n"
+                            f"📅 {event_date}"
+                        )
+                    except Exception:
+                        app.logger.exception("Telegram push failed")
+
+                except Exception:
+                    app.logger.exception("Notification error")
 
         threading.Thread(target=notify, daemon=True).start()
 
-        # redirect to a friendly booking success page (with id & download link)
         return redirect(url_for("booking_success", booking_id=booking_id))
 
     return render_template("book.html")
