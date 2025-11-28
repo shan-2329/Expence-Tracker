@@ -591,6 +591,10 @@ def fixdb():
     except Exception as e:
         return f"Already exists or error: {e}"
 
+@app.route("/ping")
+def ping():
+    return "pong"
+
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
     try:
