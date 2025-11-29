@@ -580,16 +580,16 @@ def reject_booking(booking_id):
     flash("Booking Rejected ❌", "warning")
     return redirect(url_for("admin_dashboard"))
 
-# DB fix endpoint (keeps idempotent)
-@app.route("/fixdb")
-def fixdb():
+# ---------------- AUTO FIX DB ON STARTUP ----------------
+def auto_fix_db():
     db = get_db()
     try:
         db.execute("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'")
         db.commit()
-        return "DB FIXED ✓"
+        print("AUTO-FIX ✔: 'status' column added")
     except Exception as e:
-        return f"Already exists or error: {e}"
+        print("AUTO-FIX ℹ: status column already exists / skipped:", e)
+
 
 @app.route("/ping")
 def ping():
@@ -597,8 +597,16 @@ def ping():
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
+    # Ensure DB fix runs before app starts
+    with app.app_context():
+        auto_fix_db()
+
     try:
-        app.run(debug=True, host="127.0.0.1", port=int(os.getenv("PORT", 5000)))
+        app.run(
+            debug=True,
+            host="0.0.0.0",                 # Use 0.0.0.0 for Render compatibility
+            port=int(os.getenv("PORT", 5000))
+        )
     finally:
         try:
             scheduler.shutdown()
