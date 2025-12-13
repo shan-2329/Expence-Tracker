@@ -158,7 +158,7 @@ async function loadData() {
     bookings = data.bookings || [];
     filtered = bookings;
     loadServices();
-    updateSummary();
+    updateSummaryFromAPI(data.summary);
     renderTable();
     updateCharts();
 }
@@ -191,6 +191,22 @@ function loadServices() {
     let html = `<option value="">All Services</option>`;
     services.forEach(s => html += `<option value="${s}">${s}</option>`);
     document.getElementById("serviceFilter").innerHTML = html;
+}
+
+function updateSummaryFromAPI(summary) {
+    document.getElementById("summaryCards").innerHTML = `
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Total Bookings</h6><h3>${summary.total}</h3></div></div>
+
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Confirmed</h6><h3>${summary.confirmed}</h3></div></div>
+
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Pending</h6><h3>${summary.pending}</h3></div></div>
+
+        <div class="col-md-3"><div class="card card-stats p-3">
+            <h6>Rejected</h6><h3>${summary.rejected}</h3></div></div>
+    `;
 }
 
 // Render Table
