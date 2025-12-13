@@ -493,11 +493,11 @@ def booking_success(booking_id):
 #     rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
 #     return render_template("admin.html", bookings=rows)
 
-@app.route("/admin")
-def admin():
+@app.route("/admin/dashboard")
+def admin_dashboard():
     if not session.get("admin"):
         return redirect(url_for("login"))
-    return redirect(url_for("admin_dashboard"))
+    return render_template("admin_dashboard.html")
 
 # JSON endpoint used by dashboard
 @app.route("/api/bookings")
