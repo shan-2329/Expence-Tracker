@@ -187,7 +187,7 @@ function updateSummary() {
 
 // Load unique service list
 function loadServices() {
-    let services = [...new Set(bookings.map(b => b.service))].sort();
+    let services = [...new Set(bookings.map(b => b.service || "Unknown"))];
     let html = `<option value="">All Services</option>`;
     services.forEach(s => html += `<option value="${s}">${s}</option>`);
     document.getElementById("serviceFilter").innerHTML = html;
@@ -230,15 +230,22 @@ function renderTable() {
 }
 
 // Search & Filters
+
+function safe(val) {
+    return (val || "").toString().toLowerCase();
+}
+
 function applyFilters() {
     let q = document.getElementById("searchInput").value.toLowerCase();
     let status = document.getElementById("statusFilter").value;
     let svc = document.getElementById("serviceFilter").value;
 
     filtered = bookings.filter(b =>
-        (b.name.toLowerCase().includes(q) ||
-         b.phone.includes(q) ||
-         b.location.toLowerCase().includes(q)) &&
+        (
+            safe(b.name).includes(q) ||
+            safe(b.phone).includes(q) ||
+            safe(b.location).includes(q)
+        ) &&
         (status ? b.status === status : true) &&
         (svc ? b.service === svc : true)
     );
@@ -290,7 +297,7 @@ function updateCharts() {
 
     let monthCounts = {};
     filtered.forEach(b => {
-        let m = b.event_date.slice(0, 7);
+        let m = b.event_date ? b.event_date.slice(0, 7) : "Unknown";
         monthCounts[m] = (monthCounts[m] || 0) + 1;
     });
 
