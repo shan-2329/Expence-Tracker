@@ -278,13 +278,16 @@ def send_whatsapp_message(name, phone, event_date, service,
 
     message = (
         f"❤️ JAGADHA A to Z Event Management ❤️\n\n"
-        f"Booking Update\n"
-        f"Name: {name}\n"
-        f"Phone: {phone}\n"
-        f"Date: {event_date}\n"
-        f"Service: {service}\n"
-        f"Location: {location}\n\n"
+        f"Dear <b>{name}Your Booking Details\n"
+        f"📛 Name: {name}\n"
+        f"📞 Phone: {phone}\n"
+        f"📅 Date: {event_date}\n"
+        f"🎈 Service: {service}\n"
+        f"📧 Email: {customer_email}\n"
+        f"✨ Extras: {extras}\n"
+        f"📍 Location: {location}\n\n"
         f"Thank you!"
+        f"மேலும் உதவிக்கு எங்களைத் தொடர்பு கொள்ளவும். Mob: 96597 96217"
     )
 
     encoded = urllib.parse.quote(message)
