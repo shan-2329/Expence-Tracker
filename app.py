@@ -13,7 +13,7 @@ from io import BytesIO
 import urllib.parse
 import qrcode
 
-ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919659796217")
+ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919790890865")
 
 # Email (Brevo)
 from sib_api_v3_sdk import Configuration, TransactionalEmailsApi, ApiClient, SendSmtpEmail
