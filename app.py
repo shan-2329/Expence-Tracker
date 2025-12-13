@@ -12,6 +12,7 @@ from datetime import datetime, date, timedelta
 from io import BytesIO
 import urllib.parse
 import qrcode
+from qrcode.constants import ERROR_CORRECT_L
 
 ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919790890865")
 
@@ -228,7 +229,7 @@ def send_email_via_brevo(
         </div>
       </div>
       <div style="background:#fafafa; padding:12px; text-align:center; font-size:12px;">
-        © 2025 JAGADHA A to Z Event Management — Automated message
+        JAGADHA A to Z Event Management — Automated message
       </div>
     </div>
     </body></html>
@@ -276,7 +277,7 @@ def send_whatsapp_message(name, phone, event_date, service,
     """
 
     message = (
-        f"🌸 JAGADHA A to Z Event Management 🌸\n\n"
+        f"❤️ JAGADHA A to Z Event Management ❤️\n\n"
         f"Booking Update\n"
         f"Name: {name}\n"
         f"Phone: {phone}\n"
@@ -293,9 +294,20 @@ def send_whatsapp_message(name, phone, event_date, service,
 
     # Generate QR (customer)
     try:
-        qr = qrcode.make(customer_link)
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(customer_link)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+
         qr_path = os.path.join(app.static_folder, "whatsapp_qr.png")
-        qr.save(qr_path)
+        img.save(qr_path)
+
     except Exception as e:
         app.logger.exception("QR generation failed: %s", e)
         qr_path = None
