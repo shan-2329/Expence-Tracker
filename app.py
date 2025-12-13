@@ -519,7 +519,7 @@ def api_bookings():
             extras,
             notes,
             customer_email,
-            status,
+            COALESCE(status, 'Pending') AS status,
             created_at
         FROM bookings
         ORDER BY created_at DESC
@@ -687,29 +687,28 @@ def auto_fix_db():
     try:
         db.execute("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'")
         db.commit()
-        print("AUTO-FIX ✔: 'status' column added")
-    except Exception as e:
-        print("AUTO-FIX ℹ: status column already exists / skipped:", e)
+        print("AUTO-FIX ✔ status column added")
+    except sqlite3.OperationalError:
+        # column already exists
+        pass
 
 
 @app.route("/ping")
 def ping():
     return "pong"
 
+@app.route("/_db_check")
+def db_check():
+    rows = get_db().execute("PRAGMA table_info(bookings)").fetchall()
+    return {"columns": [r["name"] for r in rows]}
+
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    # Ensure DB fix runs before app starts
     with app.app_context():
         auto_fix_db()
 
-    try:
-        app.run(
-            debug=True,
-            host="0.0.0.0",                 # Use 0.0.0.0 for Render compatibility
-            port=int(os.getenv("PORT", 5000))
-        )
-    finally:
-        try:
-            scheduler.shutdown()
-        except Exception:
-            pass
+    app.run(
+        debug=True,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000))
+    )
