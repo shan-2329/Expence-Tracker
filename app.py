@@ -10,6 +10,10 @@ import io
 import base64
 from datetime import datetime, date, timedelta
 from io import BytesIO
+import urllib.parse
+import qrcode
+
+ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919659796217")
 
 # Email (Brevo)
 from sib_api_v3_sdk import Configuration, TransactionalEmailsApi, ApiClient, SendSmtpEmail
@@ -206,7 +210,7 @@ def send_email_via_brevo(
         <table style="width:100%; font-size:14px;">
           <tr><td><b>📛 Name:</b></td><td>{name}</td></tr>
           <tr><td><b>📞 Phone:</b></td><td>{phone}</td></tr>
-          <tr><td><b>📧 Email:</b></td><td>{customer_email or '-'}</td></tr>
+          <tr><td><b>📧 Email:</b></td><td>{customer_email}</td></tr>
           <tr><td><b>📅 Event Date:</b></td><td>{event_date}</td></tr>
           <tr><td><b>🎈 Service:</b></td><td>{service}</td></tr>
           <tr><td><b>✨ Extras:</b></td><td>{extras}</td></tr>
@@ -217,7 +221,7 @@ def send_email_via_brevo(
 
         <hr>
         <p><b>தமிழில்: </b>{tamil_status}</p>
-        <p style="font-size:13px; color:#666;">(மேலும் உதவிக்கு எங்களைத் தொடர்பு கொள்ளவும். Mob: 97908 90865)</p>
+        <p style="font-size:13px; color:#666;">(மேலும் உதவிக்கு எங்களைத் தொடர்பு கொள்ளவும். Mob: 96597 96217)</p>
 
         <div style="text-align:center; margin:16px 0;">
           <a href="{website_link}" style="background:#b01357; color:white; padding:10px 18px; text-decoration:none; border-radius:6px;">Visit Our Website</a>
@@ -264,10 +268,14 @@ def send_email_via_brevo(
 # ---------------- WHATSAPP (UltraMSG) with Template fallback ----------------
 def send_whatsapp_message(name, phone, event_date, service,
                           extras, location, customer_email, notes):
-    instance = os.getenv("W_INSTANCE")
-    token = os.getenv("W_TOKEN")
-    # Full template message (professional)
-    message_template = (
+    """
+    FREE WhatsApp handling using wa.me (Click-to-Chat)
+    - Generates customer + admin WhatsApp links
+    - Generates QR code
+    - No API / No payment
+    """
+
+    message = (
         f"🌸 JAGADHA A to Z Event Management 🌸\n\n"
         f"Booking Update\n"
         f"Name: {name}\n"
@@ -278,19 +286,31 @@ def send_whatsapp_message(name, phone, event_date, service,
         f"Thank you!"
     )
 
-    # If UltraMSG configured, try API
-    if instance and token:
-        url = f"https://api.ultramsg.com/{instance}/messages/chat"
-        payload = {"token": token, "to": f"91{phone}", "body": message_template}
-        try:
-            r = requests.post(url, data=payload, timeout=15)
-            app.logger.info("WHATSAPP SENT ✓ %s", r.text)
-            return
-        except Exception as e:
-            app.logger.exception("WHATSAPP API Error, falling back to wa.me: %s", e)
+    encoded = urllib.parse.quote(message)
 
-    # Fallback: log and rely on wa.me links in emails or manual copy
-    app.logger.info("WHATSAPP API disabled or failed → fallback to wa.me link")
+    customer_link = f"https://wa.me/91{phone}?text={encoded}"
+    admin_link = f"https://wa.me/{ADMIN_WHATSAPP}?text={encoded}"
+
+    # Generate QR (customer)
+    try:
+        qr = qrcode.make(customer_link)
+        qr_path = os.path.join(app.static_folder, "whatsapp_qr.png")
+        qr.save(qr_path)
+    except Exception as e:
+        app.logger.exception("QR generation failed: %s", e)
+        qr_path = None
+
+    # Log only (cannot auto-send WhatsApp)
+    app.logger.info("WHATSAPP LINK (Customer): %s", customer_link)
+    app.logger.info("WHATSAPP LINK (Admin): %s", admin_link)
+
+    return {
+        "message": message,
+        "customer_link": customer_link,
+        "admin_link": admin_link,
+        "qr_path": qr_path
+    }
+
 
 # ---------------- TELEGRAM ADMIN PUSH (for new bookings & daily report) ----------------
 def telegram_push(message):
@@ -354,7 +374,9 @@ def book():
         extras_list = request.form.getlist("extras")
         extras = ", ".join(extras_list)
 
-        whatsapp_link = f"https://wa.me/91{phone}?text=Hello%20JAGADHA,%20I%20want%20to%20discuss%20my%20booking."
+        # whatsapp_link = f"https://wa.me/91{phone}?text=Hello%20JAGADHA,%20I%20want%20to%20discuss%20my%20booking."
+        whatsapp_link = f"https://wa.me/91{phone}?text=" \
+                        f"Hello%20JAGADHA,%20I%20want%20to%20discuss%20my%20booking."
 
         # Validations
         if not name:
@@ -403,7 +425,10 @@ def book():
 
                 # 2) WhatsApp message (best-effort)
                 try:
-                    send_whatsapp_message(name, phone, event_date, service, extras, location, customer_email, notes)
+                    wa_data = send_whatsapp_message(
+                        name, phone, event_date, service,
+                        extras, location, customer_email, notes
+                    )
                 except Exception:
                     app.logger.exception("WhatsApp send failed")
 
@@ -431,17 +456,19 @@ def booking_success(booking_id):
     if not row:
         flash("Booking not found", "danger")
         return redirect(url_for("index"))
-    return render_template("booking_success.html", booking=row)
 
-@app.route("/receipt/<int:booking_id>")
-def download_receipt(booking_id):
-    db = get_db()
-    row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
-    if not row:
-        flash("Booking not found", "danger")
-        return redirect(url_for("index"))
-    pdf_bytes = generate_pdf_receipt(row)
-    return Response(pdf_bytes, mimetype='application/pdf', headers={"Content-Disposition":f"attachment;filename=booking_{booking_id}.pdf"})
+    wa = send_whatsapp_message(
+        row["name"], row["phone"], row["event_date"],
+        row["service"], row["extras"], row["location"],
+        row["customer_email"], row["notes"]
+    )
+
+    return render_template(
+        "booking_success.html",
+        booking=row,
+        wa=wa
+    )
+
 
 # ---------------- ADMIN & DASHBOARD ----------------
 @app.route("/admin")
@@ -528,56 +555,82 @@ def delete_booking(booking_id):
 def confirm_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
+
     db = get_db()
     row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+
     if not row:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
-    # Attempt update; if status column missing, tell user to run /fixdb
+
     try:
         db.execute("UPDATE bookings SET status='Confirmed' WHERE id=?", (booking_id,))
         db.commit()
-    except sqlite3.OperationalError as e:
-        app.logger.exception("DB update failed: %s", e)
+    except sqlite3.OperationalError:
         flash("Database missing 'status' column. Visit /fixdb to add it.", "danger")
         return redirect(url_for("admin_dashboard"))
 
-    # notifications
+    # ✔ EMAIL
+    send_email_via_brevo(
+        row["name"], row["location"], row["phone"], row["event_date"],
+        row["service"], row["extras"], row["notes"], row["customer_email"],
+        status="Confirmed",
+        booking_id=booking_id
+    )
+
+    # ✔ WHATSAPP
     try:
-        msg = f"🎉 Your booking for {row['event_date']} is CONFIRMED!"
-        send_sms_fast2sms(row["phone"], msg)
-        send_whatsapp_message(row["name"], row["phone"], row["event_date"], row["service"], row["extras"], row["location"], row["customer_email"], row["notes"])
-        # send email to admin + customer with attachment
-        send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], row["notes"], row["customer_email"], status="Confirmed", booking_id=booking_id)
-    except Exception as e:
-        app.logger.exception("Error sending confirmation notifications: %s", e)
-    flash("Booking Confirmed ✓", "success")
+        send_whatsapp_message(
+            row["name"], row["phone"], row["event_date"],
+            row["service"], row["extras"], row["location"],
+            row["customer_email"], row["notes"]
+        )
+    except:
+        app.logger.exception("WhatsApp send failed")
+
+    # ✔ SMS
+    send_sms_fast2sms(row["phone"], f"🎉 Your booking for {row['event_date']} is CONFIRMED!")
+
+    flash("Booking Confirmed!", "success")
     return redirect(url_for("admin_dashboard"))
 
 @app.route("/reject/<int:booking_id>")
 def reject_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
+
     db = get_db()
     row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+
     if not row:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
-    try:
-        db.execute("UPDATE bookings SET status='Rejected' WHERE id=?", (booking_id,))
-        db.commit()
-    except sqlite3.OperationalError as e:
-        app.logger.exception("DB update failed: %s", e)
-        flash("Database missing 'status' column. Visit /fixdb to add it.", "danger")
-        return redirect(url_for("admin_dashboard"))
 
+    db.execute("UPDATE bookings SET status='Rejected' WHERE id=?", (booking_id,))
+    db.commit()
+
+    # EMAIL
+    send_email_via_brevo(
+        row["name"], row["location"], row["phone"], row["event_date"],
+        row["service"], row["extras"], row["notes"], row["customer_email"],
+        status="Rejected",
+        booking_id=booking_id
+    )
+
+    # WHATSAPP
     try:
-        msg = f"❌ Sorry, your booking on {row['event_date']} was rejected."
-        send_sms_fast2sms(row["phone"], msg)
-        send_email_via_brevo(row["name"], row["location"], row["phone"], row["event_date"], row["service"], row["extras"], f"Your booking was rejected.", row["customer_email"], status="Rejected", booking_id=booking_id)
-    except Exception as e:
-        app.logger.exception("Error sending rejection notifications: %s", e)
-    flash("Booking Rejected ❌", "warning")
+        send_whatsapp_message(
+            row["name"], row["phone"], row["event_date"],
+            row["service"], row["extras"], row["location"],
+            row["customer_email"], row["notes"]
+        )
+    except:
+        app.logger.exception("WhatsApp send failed")
+
+    # SMS Reject
+    send_sms_fast2sms(row["phone"], f"❌ Your booking for {row['event_date']} was rejected.")
+
+    flash("Booking Rejected!", "warning")
     return redirect(url_for("admin_dashboard"))
 
 # ---------------- AUTO FIX DB ON STARTUP ----------------
