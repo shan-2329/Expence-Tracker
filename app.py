@@ -14,7 +14,7 @@ import urllib.parse
 import qrcode
 from qrcode.constants import ERROR_CORRECT_L
 
-ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919790890865")
+ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919659796217")
 
 # Email (Brevo)
 from sib_api_v3_sdk import Configuration, TransactionalEmailsApi, ApiClient, SendSmtpEmail
@@ -278,7 +278,7 @@ def send_whatsapp_message(name, phone, event_date, service,
 
     message = (
         f"❤️ JAGADHA A to Z Event Management ❤️\n\n"
-        f"Dear <b>{name}Your Booking Details\n"
+        f"Dear {name} Your Booking Details\n"
         f"📛 Name: {name}\n"
         f"📞 Phone: {phone}\n"
         f"📅 Date: {event_date}\n"
@@ -486,31 +486,47 @@ def booking_success(booking_id):
 
 
 # ---------------- ADMIN & DASHBOARD ----------------
+# @app.route("/admin")
+# def admin():
+#     if not session.get("admin"):
+#         return redirect(url_for("login"))
+#     rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
+#     return render_template("admin.html", bookings=rows)
+
 @app.route("/admin")
 def admin():
     if not session.get("admin"):
         return redirect(url_for("login"))
-    rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
-    return render_template("admin.html", bookings=rows)
-
-@app.route("/admin/dashboard")
-def admin_dashboard():
-    if not session.get("admin"):
-        return redirect(url_for("login"))
-    return render_template("admin_dashboard.html")
+    return redirect(url_for("admin_dashboard"))
 
 # JSON endpoint used by dashboard
 @app.route("/api/bookings")
 def api_bookings():
     if not session.get("admin"):
-        return jsonify({"bookings":[]})
+        return jsonify({"bookings": [], "summary": {}})
 
-    rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
+    db = get_db()
+
+    # ---- Optimized single query ----
+    rows = db.execute("""
+        SELECT
+            id,
+            name,
+            phone,
+            location,
+            event_date,
+            service,
+            extras,
+            notes,
+            customer_email,
+            status,
+            created_at
+        FROM bookings
+        ORDER BY created_at DESC
+    """).fetchall()
 
     bookings = []
     for r in rows:
-        # safe access to status (backwards compatible)
-        status = r["status"] if "status" in r.keys() else "Pending"
         bookings.append({
             "id": r["id"],
             "name": r["name"] or "",
@@ -521,11 +537,28 @@ def api_bookings():
             "extras": r["extras"] or "",
             "notes": r["notes"] or "",
             "customer_email": r["customer_email"] or "",
-            "status": status,
+            "status": r["status"] or "Pending",
             "created_at": r["created_at"],
         })
 
-    return jsonify({"bookings": bookings})
+    # ---- SQL AGGREGATE (FAST) ----
+    stats = db.execute("""
+        SELECT status, COUNT(*) AS count
+        FROM bookings
+        GROUP BY status
+    """).fetchall()
+
+    summary = {s["status"]: s["count"] for s in stats}
+
+    return jsonify({
+        "bookings": bookings,
+        "summary": {
+            "total": len(bookings),
+            "pending": summary.get("Pending", 0),
+            "confirmed": summary.get("Confirmed", 0),
+            "rejected": summary.get("Rejected", 0)
+        }
+    })
 
 # CSV export
 @app.route("/export_csv")
