@@ -171,31 +171,71 @@
       100% { transform: translateX(0); }
     }
 
-    .service-item {
-      padding: 0.8rem 1rem;
-      border-radius: 10px;
-      margin-bottom: 10px;
-      font-weight: 600;
-      transition: .25s ease;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-      border-left: 6px solid transparent;
-    }
+.service-item {
+  padding: 0.85rem 1.1rem;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  transition: 0.25s ease;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+  border-left: 6px solid transparent;
+}
 
-    /* Color variations */
-    .service-item:nth-child(1) {
-      background: #fff4e6;
-      border-left-color: #ff9800;
-    }
+/* ===== DIFFERENT SOFT COLORS FOR EACH ITEM ===== */
 
-    .service-item:nth-child(2) {
-      background: #e8f4ff;
-      border-left-color: #2196f3;
-    }
+/* Column 1 */
+.col-md-4:nth-child(1) .service-item:nth-child(1) {
+  background: #fff1f3;      /* soft pink */
+  border-left-color: #ec4899;
+}
 
-    .service-item:nth-child(3) {
-      background: #f3e8ff;
-      border-left-color: #9c27b0;
-    }
+.col-md-4:nth-child(1) .service-item:nth-child(2) {
+  background: #fefce8;      /* soft yellow */
+  border-left-color: #facc15;
+}
+
+.col-md-4:nth-child(1) .service-item:nth-child(3) {
+  background: #ecfeff;      /* soft cyan */
+  border-left-color: #06b6d4;
+}
+
+/* Column 2 */
+.col-md-4:nth-child(2) .service-item:nth-child(1) {
+  background: #f0fdf4;      /* soft green */
+  border-left-color: #22c55e;
+}
+
+.col-md-4:nth-child(2) .service-item:nth-child(2) {
+  background: #f5f3ff;      /* soft purple */
+  border-left-color: #8b5cf6;
+}
+
+.col-md-4:nth-child(2) .service-item:nth-child(3) {
+  background: #fff7ed;      /* soft orange */
+  border-left-color: #fb923c;
+}
+
+/* Column 3 */
+.col-md-4:nth-child(3) .service-item:nth-child(1) {
+  background: #eef2ff;      /* soft indigo */
+  border-left-color: #6366f1;
+}
+
+.col-md-4:nth-child(3) .service-item:nth-child(2) {
+  background: #fdf2f8;      /* soft rose */
+  border-left-color: #f43f5e;
+}
+
+.col-md-4:nth-child(3) .service-item:nth-child(3) {
+  background: #f0fdfa;      /* soft teal */
+  border-left-color: #14b8a6;
+}
+
+/* Hover effect */
+.service-item:hover {
+  transform: translateX(6px);
+  filter: brightness(1.05);
+}
 
     /* Hover */
     .service-item:hover {
@@ -220,7 +260,7 @@
       <div class="mt-3 cta-wrap">
         <a href="/book" class="btn btn-gold btn-lg">
           Book Consultation
-          <span class="cta-arrow">➜</span>
+          <span class="cta-arrow">⬅</span>
         </a>
       </div>
 
