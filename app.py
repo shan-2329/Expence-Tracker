@@ -308,7 +308,7 @@ def send_whatsapp_message(name, phone, event_date, service,
 
         img = qr.make_image(fill_color="black", back_color="white")
 
-        qr_path = os.path.join(app.static_folder, "whatsapp_qr.png")
+        qr_path = os.path.join(app.static_folder, f"whatsapp_qr_{phone}.png")
         img.save(qr_path)
 
     except Exception as e:
@@ -344,21 +344,44 @@ def telegram_push(message):
 
 # ---------------- Admin daily summary (08:00) ----------------
 def daily_admin_report():
-    try:
-        db = get_db()
-        today = date.today()
-        rows = db.execute("SELECT status, COUNT(*) as cnt FROM bookings WHERE date(created_at)=? GROUP BY status", (today.isoformat(),)).fetchall()
-        summary = {r["status"]: r["cnt"] for r in rows}
-        total = sum(summary.values())
-        msg = f"Daily Bookings Report ({today.isoformat()})\nTotal: {total}\n"
-        for k, v in summary.items():
-            msg += f"{k}: {v}\n"
-        # send to telegram and email admin
-        telegram_push(msg)
-        # email admin (use send_email_via_brevo)
-        send_email_via_brevo("Admin", "-", "-", today.isoformat(), "-", "-", msg, customer_email=None, status="Daily Report")
-    except Exception as e:
-        app.logger.exception("daily_admin_report error: %s", e)
+    with app.app_context():
+        try:
+            db = get_db()
+            today = date.today()
+
+            rows = db.execute("""
+                SELECT status, COUNT(*) AS cnt
+                FROM bookings
+                WHERE date(created_at) = ?
+                GROUP BY status
+            """, (today.isoformat(),)).fetchall()
+
+            summary = {r["status"]: r["cnt"] for r in rows}
+            total = sum(summary.values())
+
+            msg = f"📊 Daily Bookings Report ({today.isoformat()})\n"
+            msg += f"Total: {total}\n"
+            for k, v in summary.items():
+                msg += f"{k}: {v}\n"
+
+            # ✅ Telegram admin alert
+            telegram_push(msg)
+
+            # ✅ Email admin report (Brevo)
+            send_email_via_brevo(
+                name="Admin",
+                location="-",
+                phone="-",
+                event_date=today.isoformat(),
+                service="-",
+                extras="-",
+                notes=msg,
+                customer_email=None,
+                status="Daily Report"
+            )
+
+        except Exception as e:
+            app.logger.exception("daily_admin_report error: %s", e)
 
 # start scheduler
 scheduler = BackgroundScheduler()
@@ -589,36 +612,45 @@ def logout():
     return redirect(url_for("login"))
 
 # ---------------- DELETE / CONFIRM / REJECT ----------------
+# ---------------- DELETE BOOKING ----------------
 @app.route("/delete/<int:booking_id>")
 def delete_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
+
     db = get_db()
     db.execute("DELETE FROM bookings WHERE id=?", (booking_id,))
     db.commit()
+
     flash("🗑️ Booking deleted successfully!", "success")
     return redirect(url_for("admin_dashboard"))
 
+
+# ---------------- CONFIRM BOOKING ----------------
 @app.route("/confirm/<int:booking_id>")
 def confirm_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
 
     db = get_db()
-    row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+
+    row = db.execute(
+        "SELECT * FROM bookings WHERE id=?",
+        (booking_id,)
+    ).fetchone()
 
     if not row:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
 
-    try:
-        db.execute("UPDATE bookings SET status='Confirmed' WHERE id=?", (booking_id,))
-        db.commit()
-    except sqlite3.OperationalError:
-        flash("Database missing 'status' column. Visit /fixdb to add it.", "danger")
-        return redirect(url_for("admin_dashboard"))
+    # ✅ Safe status update
+    db.execute(
+        "UPDATE bookings SET status=? WHERE id=?",
+        ("Confirmed", booking_id)
+    )
+    db.commit()
 
-    # ✔ EMAIL
+    # 📧 EMAIL
     send_email_via_brevo(
         row["name"], row["location"], row["phone"], row["event_date"],
         row["service"], row["extras"], row["notes"], row["customer_email"],
@@ -626,38 +658,50 @@ def confirm_booking(booking_id):
         booking_id=booking_id
     )
 
-    # ✔ WHATSAPP
+    # 📱 WHATSAPP
     try:
         send_whatsapp_message(
             row["name"], row["phone"], row["event_date"],
             row["service"], row["extras"], row["location"],
             row["customer_email"], row["notes"]
         )
-    except:
+    except Exception:
         app.logger.exception("WhatsApp send failed")
 
-    # ✔ SMS
-    send_sms_fast2sms(row["phone"], f"🎉 Your booking for {row['event_date']} is CONFIRMED!")
+    # 📲 SMS
+    send_sms_fast2sms(
+        row["phone"],
+        f"🎉 Your booking for {row['event_date']} is CONFIRMED!"
+    )
 
-    flash("Booking Confirmed!", "success")
+    flash("✅ Booking Confirmed!", "success")
     return redirect(url_for("admin_dashboard"))
 
+
+# ---------------- REJECT BOOKING ----------------
 @app.route("/reject/<int:booking_id>")
 def reject_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
 
     db = get_db()
-    row = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
+
+    row = db.execute(
+        "SELECT * FROM bookings WHERE id=?",
+        (booking_id,)
+    ).fetchone()
 
     if not row:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
 
-    db.execute("UPDATE bookings SET status='Rejected' WHERE id=?", (booking_id,))
+    db.execute(
+        "UPDATE bookings SET status=? WHERE id=?",
+        ("Rejected", booking_id)
+    )
     db.commit()
 
-    # EMAIL
+    # 📧 EMAIL
     send_email_via_brevo(
         row["name"], row["location"], row["phone"], row["event_date"],
         row["service"], row["extras"], row["notes"], row["customer_email"],
@@ -665,31 +709,37 @@ def reject_booking(booking_id):
         booking_id=booking_id
     )
 
-    # WHATSAPP
+    # 📱 WHATSAPP
     try:
         send_whatsapp_message(
             row["name"], row["phone"], row["event_date"],
             row["service"], row["extras"], row["location"],
             row["customer_email"], row["notes"]
         )
-    except:
+    except Exception:
         app.logger.exception("WhatsApp send failed")
 
-    # SMS Reject
-    send_sms_fast2sms(row["phone"], f"❌ Your booking for {row['event_date']} was rejected.")
+    # 📲 SMS
+    send_sms_fast2sms(
+        row["phone"],
+        f"❌ Your booking for {row['event_date']} was rejected."
+    )
 
-    flash("Booking Rejected!", "warning")
+    flash("❌ Booking Rejected!", "warning")
     return redirect(url_for("admin_dashboard"))
+
 
 # ---------------- AUTO FIX DB ON STARTUP ----------------
 def auto_fix_db():
     db = get_db()
     try:
-        db.execute("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'")
+        db.execute(
+            "ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'"
+        )
         db.commit()
         print("AUTO-FIX ✔ status column added")
     except sqlite3.OperationalError:
-        # column already exists
+        # Column already exists
         pass
 
 
