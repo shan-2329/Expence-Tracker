@@ -78,6 +78,18 @@ def create_tables():
 with app.app_context():
     create_tables()
 
+def ensure_status_column():
+    db = get_db()
+    cols = db.execute("PRAGMA table_info(bookings)").fetchall()
+    col_names = [c["name"] for c in cols]
+
+    if "status" not in col_names:
+        db.execute(
+            "ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'"
+        )
+        db.commit()
+        app.logger.info("DB FIX ✔ status column added")
+
 # ---------------- Utilities: PDF receipt ----------------
 def generate_pdf_receipt(booking_row):
     """
@@ -385,7 +397,6 @@ def daily_admin_report():
 
 # start scheduler
 scheduler = BackgroundScheduler()
-scheduler.add_job(daily_admin_report, 'cron', hour=8, minute=0)  # 08:00 server time
 scheduler.start()
 
 # ---------------- Utility ----------------
@@ -508,14 +519,6 @@ def booking_success(booking_id):
     )
 
 
-# ---------------- ADMIN & DASHBOARD ----------------
-# @app.route("/admin")
-# def admin():
-#     if not session.get("admin"):
-#         return redirect(url_for("login"))
-#     rows = get_db().execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
-#     return render_template("admin.html", bookings=rows)
-
 @app.route("/admin/dashboard")
 def admin_dashboard():
     if not session.get("admin"):
@@ -529,8 +532,8 @@ def api_bookings():
         return jsonify({"bookings": [], "summary": {}})
 
     db = get_db()
+    ensure_status_column()  # <-- CRITICAL
 
-    # ---- Optimized single query ----
     rows = db.execute("""
         SELECT
             id,
@@ -548,25 +551,22 @@ def api_bookings():
         ORDER BY created_at DESC
     """).fetchall()
 
-    bookings = []
-    for r in rows:
-        bookings.append({
-            "id": r["id"],
-            "name": r["name"] or "",
-            "phone": r["phone"] or "",
-            "location": r["location"] or "",
-            "event_date": r["event_date"] or "",
-            "service": r["service"] or "Unknown",
-            "extras": r["extras"] or "",
-            "notes": r["notes"] or "",
-            "customer_email": r["customer_email"] or "",
-            "status": r["status"] or "Pending",
-            "created_at": r["created_at"],
-        })
+    bookings = [{
+        "id": r["id"],
+        "name": r["name"],
+        "phone": r["phone"],
+        "location": r["location"],
+        "event_date": r["event_date"],
+        "service": r["service"] or "Unknown",
+        "extras": r["extras"],
+        "notes": r["notes"],
+        "customer_email": r["customer_email"],
+        "status": r["status"],
+        "created_at": r["created_at"]
+    } for r in rows]
 
-    # ---- SQL AGGREGATE (FAST) ----
     stats = db.execute("""
-        SELECT status, COUNT(*) AS count
+        SELECT COALESCE(status,'Pending') AS status, COUNT(*) AS count
         FROM bookings
         GROUP BY status
     """).fetchall()
@@ -579,7 +579,7 @@ def api_bookings():
             "total": len(bookings),
             "pending": summary.get("Pending", 0),
             "confirmed": summary.get("Confirmed", 0),
-            "rejected": summary.get("Rejected", 0)
+            "rejected": summary.get("Rejected", 0),
         }
     })
 
@@ -618,6 +618,7 @@ def delete_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
 
+    ensure_status_column()
     db = get_db()
     db.execute("DELETE FROM bookings WHERE id=?", (booking_id,))
     db.commit()
@@ -632,6 +633,7 @@ def confirm_booking(booking_id):
     if not session.get("admin"):
         return redirect(url_for("login"))
 
+    ensure_status_column()
     db = get_db()
 
     row = db.execute(
@@ -729,20 +731,6 @@ def reject_booking(booking_id):
     return redirect(url_for("admin_dashboard"))
 
 
-# ---------------- AUTO FIX DB ON STARTUP ----------------
-def auto_fix_db():
-    db = get_db()
-    try:
-        db.execute(
-            "ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Pending'"
-        )
-        db.commit()
-        print("AUTO-FIX ✔ status column added")
-    except sqlite3.OperationalError:
-        # Column already exists
-        pass
-
-
 @app.route("/ping")
 def ping():
     return "pong"
@@ -750,12 +738,15 @@ def ping():
 @app.route("/_db_check")
 def db_check():
     rows = get_db().execute("PRAGMA table_info(bookings)").fetchall()
-    return {"columns": [r["name"] for r in rows]}
+    return {
+        "columns": [r["name"] for r in rows]
+    }
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
     with app.app_context():
-        auto_fix_db()
+        create_tables()
+        ensure_status_column()
 
     app.run(
         debug=True,
