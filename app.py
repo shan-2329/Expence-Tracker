@@ -221,13 +221,13 @@ def send_email_via_brevo(
         <p>Dear <b>{name}</b>,</p>
         <p>Your booking details:</p>
         <table style="width:100%; font-size:14px;">
-          <tr><td><b>📛 Name:</b></td><td>{name}</td></tr>
-          <tr><td><b>📞 Phone:</b></td><td>{phone}</td></tr>
-          <tr><td><b>📧 Email:</b></td><td>{customer_email}</td></tr>
-          <tr><td><b>📅 Event Date:</b></td><td>{event_date}</td></tr>
-          <tr><td><b>🎈 Service:</b></td><td>{service}</td></tr>
-          <tr><td><b>✨ Extras:</b></td><td>{extras}</td></tr>
-          <tr><td><b>📍 Location:</b></td><td>{location}</td></tr>
+          <tr><td><b>📛Name:</b></td><td>{name}</td></tr>
+          <tr><td><b>📞Phone:</b></td><td>{phone}</td></tr>
+          <tr><td><b>📧Email:</b></td><td>{customer_email}</td></tr>
+          <tr><td><b>📅Event Date:</b></td><td>{event_date}</td></tr>
+          <tr><td><b>🎈Service:</b></td><td>{service}</td></tr>
+          <tr><td><b>✨Extras:</b></td><td>{extras}</td></tr>
+          <tr><td><b>📍Location:</b></td><td>{location}</td></tr>
         </table>
 
         <p style="margin-top:12px;"><b>Notes:</b> {notes or '-'}</p>
