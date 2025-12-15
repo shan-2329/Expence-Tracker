@@ -100,9 +100,10 @@
             <th>Email</th>
             <th>Service</th>
             <th>Event Date</th>
-            <th>Status</th>
             <th>Location</th>
             <th>Extras</th>
+            <th>Notes</th>
+            <th>Status</th>
             <th>Actions</th>
         </tr>
         </thead>
@@ -192,9 +193,11 @@ function renderTable() {
             <td>${b.customer_email || "-"}</td>
             <td>${b.service || "-"}</td>
             <td>${b.event_date || "-"}</td>
-            <td>${badge}</td>
             <td>${b.location || "-"}</td>
             <td>${b.extras || "-"}</td>
+            <td>${b.notes || "-"}</td>
+            <td>${badge}</td>
+
             <td>
                 <button class="btn btn-success btn-sm action-btn"
                         onclick="updateStatus(${b.id}, 'confirm')">Confirm</button>
