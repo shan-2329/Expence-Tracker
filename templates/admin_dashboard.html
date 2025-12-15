@@ -92,10 +92,19 @@
 <div class="table-responsive mt-4">
     <table class="table table-bordered">
         <thead>
-            <tr>
-                <th>#</th><th>Name</th><th>Phone</th><th>Service</th><th>Date</th>
-                <th>Status</th><th>Location</th><th>Email</th><th>Actions</th>
-            </tr>
+        <tr>
+            <th>#</th>
+            <th>Received Date & Time</th>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Service</th>
+            <th>Event Date</th>
+            <th>Status</th>
+            <th>Location</th>
+            <th>Extras</th>
+            <th>Actions</th>
+        </tr>
         </thead>
         <tbody id="bookingTable"></tbody>
     </table>
@@ -132,7 +141,8 @@ async function loadData() {
 
     bookings = (data.bookings || []).map(b => ({
         ...b,
-        status: b.status || "Pending"
+        status: b.status || "Pending",
+        created_at: b.created_at || null
     }));
 
     filtered = bookings;
@@ -163,30 +173,42 @@ function renderTable() {
     let html = "";
 
     pageData.forEach((b, i) => {
-        let badge = b.status === "Confirmed" ? '<span class="badge-confirmed">Confirmed</span>' :
-                    b.status === "Rejected" ? '<span class="badge-rejected">Rejected</span>' :
-                    '<span class="badge-pending">Pending</span>';
+
+        let badge =
+            b.status === "Confirmed" ? `<span class="badge-confirmed">Confirmed</span>` :
+            b.status === "Rejected" ? `<span class="badge-rejected">Rejected</span>` :
+            `<span class="badge-pending">Pending</span>`;
+
+        let received = b.created_at
+            ? new Date(b.created_at).toLocaleString()
+            : "-";
 
         html += `
         <tr>
             <td>${start + i + 1}</td>
-            <td>${b.name}</td>
-            <td>${b.phone}</td>
-            <td>${b.service}</td>
-            <td>${b.event_date}</td>
+            <td>${received}</td>
+            <td>${b.name || "-"}</td>
+            <td>${b.phone || "-"}</td>
+            <td>${b.customer_email || "-"}</td>
+            <td>${b.service || "-"}</td>
+            <td>${b.event_date || "-"}</td>
             <td>${badge}</td>
-            <td>${b.location}</td>
-            <td>${b.customer_email || '-'}</td>
+            <td>${b.location || "-"}</td>
+            <td>${b.extras || "-"}</td>
             <td>
-                <button class="btn btn-success btn-sm action-btn" onclick="updateStatus(${b.id}, 'confirm')">Confirm</button>
-                <button class="btn btn-warning btn-sm action-btn" onclick="updateStatus(${b.id}, 'reject')">Reject</button>
-                <a href="/delete/${b.id}" class="btn btn-danger btn-sm action-btn" onclick="return confirm('Delete booking?')">Delete</a>
+                <button class="btn btn-success btn-sm action-btn"
+                        onclick="updateStatus(${b.id}, 'confirm')">Confirm</button>
+                <button class="btn btn-warning btn-sm action-btn"
+                        onclick="updateStatus(${b.id}, 'reject')">Reject</button>
+                <a href="/delete/${b.id}"
+                   class="btn btn-danger btn-sm action-btn"
+                   onclick="return confirm('Delete booking?')">Delete</a>
             </td>
         </tr>`;
     });
 
-    document.getElementById("bookingTable").innerHTML = html;
-    document.getElementById("pageNumber").innerText = `Page ${currentPage}`;
+    bookingTable.innerHTML = html;
+    pageNumber.innerText = `Page ${currentPage}`;
 }
 
 function safe(v){ return (v||"").toLowerCase(); }
