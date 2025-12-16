@@ -5,16 +5,11 @@ from flask import (
 import psycopg2
 import psycopg2.extras
 import os
-import threading
-import requests
 import csv
 import io
-import base64
-from datetime import date
-from io import BytesIO
 import urllib.parse
-import qrcode
-from qrcode.constants import ERROR_CORRECT_L
+from datetime import date, timedelta
+from io import BytesIO
 
 # ================= CONFIG =================
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
@@ -57,6 +52,7 @@ def create_tables():
             extras TEXT,
             notes TEXT,
             status TEXT DEFAULT 'Pending',
+            whatsapp_sent BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -65,40 +61,33 @@ def create_tables():
 with app.app_context():
     create_tables()
 
-# ================= PDF =================
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-
-def generate_pdf_receipt(row):
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
-    y = 800
-
-    p.setFont("Helvetica-Bold", 18)
-    p.drawString(50, y, "JAGADHA A to Z Event Management")
-    y -= 40
-
-    p.setFont("Helvetica", 12)
-    for k in ["id","name","phone","customer_email","event_date","service","extras","notes"]:
-        p.drawString(50, y, f"{k.capitalize()}: {row.get(k,'')}")
-        y -= 18
-
-    p.showPage()
-    p.save()
-    buffer.seek(0)
-    return buffer.read()
-
 # ================= WHATSAPP =================
-def send_whatsapp_message(row):
-    msg = (
-        f"❤️ JAGADHA A to Z ❤️\n"
-        f"Booking #{row['id']}\n"
-        f"Name: {row['name']}\n"
-        f"Date: {row['event_date']}\n"
-        f"Service: {row['service']}"
-    )
-    encoded = urllib.parse.quote(msg)
-    return f"https://wa.me/91{row['phone']}?text={encoded}"
+def whatsapp_customer(row):
+    msg = f"""
+❤️ JAGADHA A to Z Event Management ❤️
+
+Booking ID: {row['id']}
+Name: {row['name']}
+Event Date: {row['event_date']}
+Service: {row['service']}
+
+Thank you for choosing us 🙏
+"""
+    return f"https://wa.me/91{row['phone']}?text={urllib.parse.quote(msg)}"
+
+def whatsapp_admin(row):
+    msg = f"""
+📢 NEW BOOKING ALERT
+
+Booking ID: {row['id']}
+Name: {row['name']}
+Phone: {row['phone']}
+Event Date: {row['event_date']}
+Service: {row['service']}
+"""
+    return f"https://wa.me/{ADMIN_WHATSAPP}?text={urllib.parse.quote(msg)}"
+
+app.jinja_env.globals.update(whatsapp_admin=whatsapp_admin)
 
 # ================= ROUTES =================
 @app.route("/")
@@ -149,7 +138,7 @@ def booking_success(booking_id):
     return render_template(
         "booking_success.html",
         booking=row,
-        whatsapp_link=send_whatsapp_message(row)
+        whatsapp_link=whatsapp_customer(row)
     )
 
 # ================= ADMIN =================
@@ -198,11 +187,9 @@ def confirm_booking(booking_id):
 
     db = get_db()
     cur = db.cursor()
-    cur.execute(
-        "UPDATE bookings SET status='Confirmed' WHERE id=%s",
-        (booking_id,)
-    )
+    cur.execute("UPDATE bookings SET status='Confirmed' WHERE id=%s",(booking_id,))
     db.commit()
+
     flash("Booking confirmed","success")
     return redirect(url_for("admin_dashboard"))
 
@@ -213,11 +200,9 @@ def reject_booking(booking_id):
 
     db = get_db()
     cur = db.cursor()
-    cur.execute(
-        "UPDATE bookings SET status='Rejected' WHERE id=%s",
-        (booking_id,)
-    )
+    cur.execute("UPDATE bookings SET status='Rejected' WHERE id=%s",(booking_id,))
     db.commit()
+
     flash("Booking rejected","warning")
     return redirect(url_for("admin_dashboard"))
 
@@ -230,6 +215,7 @@ def delete_booking(booking_id):
     cur = db.cursor()
     cur.execute("DELETE FROM bookings WHERE id=%s",(booking_id,))
     db.commit()
+
     flash("Booking deleted","success")
     return redirect(url_for("admin_dashboard"))
 
