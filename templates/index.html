@@ -162,6 +162,8 @@
     .cta-arrow {
       margin-left: 8px;
       display: inline-block;
+      font-size: 28px;     /* 🔹 size / length */
+      font-weight: bold;  /* 🔹 thickness */
       animation: arrowMove 1.2s infinite ease-in-out;
     }
 
@@ -239,6 +241,20 @@
   transform: translateY(-3px);
 }
 
+.blink-text span {
+  display: inline-block;
+  animation: letterBlink 1.8s infinite;
+}
+
+.blink-text span:nth-child(n) {
+  animation-delay: calc(var(--i) * 0.1s);
+}
+
+@keyframes letterBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
   </style>
 </head>
 <body>
@@ -266,7 +282,11 @@
   <section class="services-container">
     <div class="services">
 
-      <h2>Our Services</h2>
+      <h2 class="services-title blink-text">
+        <span>O</span><span>u</span><span>r</span>
+        <span> </span>
+        <span>S</span><span>e</span><span>r</span><span>v</span><span>i</span><span>c</span><span>e</span><span>s</span>
+      </h2>
 
       <div class="row g-3">
         <div class="col-md-4">
