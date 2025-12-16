@@ -181,68 +181,63 @@
   border-left: 6px solid transparent;
 }
 
-/* ===== DIFFERENT SOFT COLORS FOR EACH ITEM ===== */
+/* ===== SLIGHTLY BRIGHTER SOFT COLORS FOR EACH ITEM ===== */
 
 /* Column 1 */
 .col-md-4:nth-child(1) .service-item:nth-child(1) {
-  background: #fff1f3;      /* soft pink */
+  background: #ffe4e8;      /* brighter soft pink */
   border-left-color: #ec4899;
 }
 
 .col-md-4:nth-child(1) .service-item:nth-child(2) {
-  background: #fefce8;      /* soft yellow */
+  background: #fff9c2;      /* brighter soft yellow */
   border-left-color: #facc15;
 }
 
 .col-md-4:nth-child(1) .service-item:nth-child(3) {
-  background: #ecfeff;      /* soft cyan */
+  background: #dff6fb;      /* brighter soft cyan */
   border-left-color: #06b6d4;
 }
 
 /* Column 2 */
 .col-md-4:nth-child(2) .service-item:nth-child(1) {
-  background: #f0fdf4;      /* soft green */
+  background: #dcfce7;      /* brighter soft green */
   border-left-color: #22c55e;
 }
 
 .col-md-4:nth-child(2) .service-item:nth-child(2) {
-  background: #f5f3ff;      /* soft purple */
+  background: #ebe9ff;      /* brighter soft purple */
   border-left-color: #8b5cf6;
 }
 
 .col-md-4:nth-child(2) .service-item:nth-child(3) {
-  background: #fff7ed;      /* soft orange */
+  background: #ffedd5;      /* brighter soft orange */
   border-left-color: #fb923c;
 }
 
 /* Column 3 */
 .col-md-4:nth-child(3) .service-item:nth-child(1) {
-  background: #eef2ff;      /* soft indigo */
+  background: #e0e7ff;      /* brighter soft indigo */
   border-left-color: #6366f1;
 }
 
 .col-md-4:nth-child(3) .service-item:nth-child(2) {
-  background: #fdf2f8;      /* soft rose */
+  background: #fde2ec;      /* brighter soft rose */
   border-left-color: #f43f5e;
 }
 
 .col-md-4:nth-child(3) .service-item:nth-child(3) {
-  background: #f0fdfa;      /* soft teal */
+  background: #ccfbf1;      /* brighter soft teal */
   border-left-color: #14b8a6;
 }
 
-/* Hover effect */
-.service-item:hover {
-  transform: translateX(6px);
-  filter: brightness(1.05);
+.service-item {
+  transition: background 0.3s ease, transform 0.2s ease;
 }
 
-    /* Hover */
-    .service-item:hover {
-      transform: translateX(6px);
-      filter: brightness(1.05);
-    }
-
+.service-item:hover {
+  transform: translateY(-3px);
+}
 
   </style>
 </head>
