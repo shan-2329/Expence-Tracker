@@ -165,7 +165,7 @@ def admin_dashboard():
 @app.route("/api/bookings")
 def api_bookings():
     if not session.get("admin"):
-        return jsonify([])
+        return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
     cur = db.cursor()
@@ -183,41 +183,38 @@ def api_bookings():
 @app.route("/confirm/<int:booking_id>")
 def confirm_booking(booking_id):
     if not session.get("admin"):
-        return redirect(url_for("login"))
+        return jsonify({"error":"Unauthorized"}), 401
 
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE bookings SET status='Confirmed' WHERE id=%s",(booking_id,))
     db.commit()
 
-    flash("Booking confirmed","success")
-    return redirect(url_for("admin_dashboard"))
+    return jsonify({"success": True})
 
 @app.route("/reject/<int:booking_id>")
 def reject_booking(booking_id):
     if not session.get("admin"):
-        return redirect(url_for("login"))
+        return jsonify({"error":"Unauthorized"}), 401
 
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE bookings SET status='Rejected' WHERE id=%s",(booking_id,))
     db.commit()
 
-    flash("Booking rejected","warning")
-    return redirect(url_for("admin_dashboard"))
+    return jsonify({"success": True})
 
 @app.route("/delete/<int:booking_id>")
 def delete_booking(booking_id):
     if not session.get("admin"):
-        return redirect(url_for("login"))
+        return jsonify({"error":"Unauthorized"}), 401
 
     db = get_db()
     cur = db.cursor()
     cur.execute("DELETE FROM bookings WHERE id=%s",(booking_id,))
     db.commit()
 
-    flash("Booking deleted","success")
-    return redirect(url_for("admin_dashboard"))
+    return jsonify({"success": True})
 
 @app.route("/export_csv")
 def export_csv():
