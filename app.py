@@ -8,8 +8,7 @@ import os
 import csv
 import io
 import urllib.parse
-from datetime import date, timedelta
-from io import BytesIO
+
 
 # ================= CONFIG =================
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
@@ -135,17 +134,36 @@ def booking_success(booking_id):
         flash("Booking not found", "danger")
         return redirect(url_for("index"))
 
+    wa_message = f"""❤️ JAGADHA A to Z Event Management ❤️
+
+Booking ID: {row['id']}
+Name: {row['name']}
+Event Date: {row['event_date']}
+Service: {row['service']}
+
+Thank you for choosing us 🙏
+"""
+
+    wa = {
+        "message": wa_message,
+        "customer_link": whatsapp_customer(row),
+        "admin_link": whatsapp_admin(row),
+        "qr_path": True   # enable QR section
+    }
+
     return render_template(
         "booking_success.html",
         booking=row,
-        whatsapp_link=whatsapp_customer(row)
+        wa=wa
     )
+
 
 # ================= ADMIN =================
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
         if request.form["username"] == ADMIN_USER and request.form["password"] == ADMIN_PASS:
+            session.permanent = True
             session["admin"] = True
             return redirect(url_for("admin_dashboard"))
         flash("Invalid credentials","danger")
@@ -174,20 +192,23 @@ def api_bookings():
 
     return jsonify({
         "total": len(rows),
-        "pending": sum(1 for r in rows if r["status"]=="Pending"),
-        "confirmed": sum(1 for r in rows if r["status"]=="Confirmed"),
-        "rejected": sum(1 for r in rows if r["status"]=="Rejected"),
+        "pending": sum(1 for r in rows if r["status"] == "Pending"),
+        "confirmed": sum(1 for r in rows if r["status"] == "Confirmed"),
+        "rejected": sum(1 for r in rows if r["status"] == "Rejected"),
         "bookings": rows
     })
 
 @app.route("/confirm/<int:booking_id>")
 def confirm_booking(booking_id):
     if not session.get("admin"):
-        return jsonify({"error":"Unauthorized"}), 401
+        return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
     cur = db.cursor()
-    cur.execute("UPDATE bookings SET status='Confirmed' WHERE id=%s",(booking_id,))
+    cur.execute(
+        "UPDATE bookings SET status='Confirmed' WHERE id=%s",
+        (booking_id,)
+    )
     db.commit()
 
     return jsonify({"success": True})
@@ -199,7 +220,8 @@ def reject_booking(booking_id):
 
     db = get_db()
     cur = db.cursor()
-    cur.execute("UPDATE bookings SET status='Rejected' WHERE id=%s",(booking_id,))
+    cur.execute("UPDATE bookings SET status='Rejected' WHERE id=%s",
+                (booking_id,))
     db.commit()
 
     return jsonify({"success": True})
@@ -219,7 +241,7 @@ def delete_booking(booking_id):
 @app.route("/export_csv")
 def export_csv():
     if not session.get("admin"):
-        return redirect(url_for("login"))
+        return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
     cur = db.cursor()
@@ -238,9 +260,29 @@ def export_csv():
         headers={"Content-Disposition":"attachment;filename=bookings.csv"}
     )
 
+@app.route("/mark_whatsapp_sent/<int:booking_id>", methods=["POST"])
+def mark_whatsapp_sent(booking_id):
+    if not session.get("admin"):
+        return jsonify({"error":"Unauthorized"}), 401
+
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(
+        "UPDATE bookings SET whatsapp_sent=TRUE WHERE id=%s",
+        (booking_id,)
+    )
+    db.commit()
+    return jsonify({"success": True})
+
 @app.route("/ping")
 def ping():
     return "pong"
+
+if os.getenv("RENDER"):
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_SAMESITE="None"
+    )
 
 # ================= RUN =================
 if __name__ == "__main__":
