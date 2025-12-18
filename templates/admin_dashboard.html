@@ -152,23 +152,31 @@ let currentPage = 1;
 const perPage = 10;
 
 async function loadData() {
-    const res = await fetch("/api/bookings");
+    try {
+        const res = await fetch('/api/bookings', {
+            credentials: 'include'
+        });
 
-    if (!res.ok) {
-        alert("Session expired. Please login again.");
-        window.location.href = "/login";
-        return;
+        if (!res.ok) {
+            alert("Session expired. Please login again.");
+            window.location.href = "/login";
+            return;
+        }
+
+        const data = await res.json();
+        console.log("API DATA:", data);
+
+        bookings = data.bookings || [];
+        filtered = bookings;
+
+        loadServices();
+        updateSummaryFromAPI(data);
+        renderTable();
+        updateCharts();
+
+    } catch (err) {
+        console.error("Dashboard load error:", err);
     }
-
-    const data = await res.json();
-
-    bookings = data.bookings || [];
-    filtered = bookings;
-
-    loadServices();
-    updateSummaryFromAPI(data);
-    renderTable();
-    updateCharts();
 }
 
 function updateSummaryFromAPI(summary) {
@@ -179,7 +187,6 @@ function updateSummaryFromAPI(summary) {
         <div class="col-md-3"><div class="card card-stats p-3"><h6>Rejected</h6><h3>${summary.rejected}</h3></div></div>
     `;
 }
-
 function loadServices() {
     let services = [...new Set(bookings.map(b => b.service || "Unknown"))];
     document.getElementById("serviceFilter").innerHTML = '<option value="">All Services</option>' +
@@ -258,7 +265,9 @@ prevPage.onclick = () => { if (currentPage > 1) { currentPage--; renderTable(); 
 nextPage.onclick = () => { if (currentPage * perPage < filtered.length) { currentPage++; renderTable(); }};
 
 async function updateStatus(id, action) {
-    await fetch(`/${action}/${id}`);
+    await fetch(`/${action}/${id}`, {
+        credentials: 'include'
+    });
     await loadData();
 }
 
