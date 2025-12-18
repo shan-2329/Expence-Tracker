@@ -129,7 +129,6 @@
 <div class="row mt-4">
     <div class="col-md-12"><canvas id="monthlyChart"></canvas></div>
 </div>
-```
 
 </div>
 
@@ -281,6 +280,12 @@ statusFilter.onchange = applyFilters;
 serviceFilter.onchange = applyFilters;
 
 loadData();
+
+// 🔁 Auto refresh dashboard every 10 seconds
+setInterval(() => {
+    loadData();
+}, 10000);
+
 </script>
 
 </body>
