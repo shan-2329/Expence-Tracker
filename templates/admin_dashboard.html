@@ -153,17 +153,20 @@ const perPage = 10;
 
 async function loadData() {
     const res = await fetch("/api/bookings");
+
+    if (!res.ok) {
+        alert("Session expired. Please login again.");
+        window.location.href = "/login";
+        return;
+    }
+
     const data = await res.json();
 
-    bookings = (data.bookings || []).map(b => ({
-        ...b,
-        status: b.status || "Pending",
-        created_at: b.created_at || null
-    }));
-
+    bookings = data.bookings || [];
     filtered = bookings;
+
     loadServices();
-    updateSummaryFromAPI(data);   // ✅ FIX HERE
+    updateSummaryFromAPI(data);
     renderTable();
     updateCharts();
 }
