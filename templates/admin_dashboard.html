@@ -1,7 +1,4 @@
-<!-- templates/admin_dashboard.html -->
-
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9,56 +6,23 @@
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
 
 <style>
-    body {
-        background: #f8f9fc;
-        font-family: "Nunito", sans-serif;
-    }
+body { background:#f8f9fc; font-family:"Nunito",sans-serif; }
+.dashboard-container{max-width:1820px;}
+.dashboard-title{font-size:2rem;font-weight:700;color:#d4af37;text-align:center;margin-bottom:20px;}
+.card-stats{border-left:6px solid #d4af37;background:#fff;border-radius:12px;transition:.2s;}
+.card-stats:hover{transform:translateY(-5px);box-shadow:0 0 18px rgba(212,175,55,.25);}
+.filter-section{background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.05);}
+table thead{background:#fff7df;color:#8b6f00;}
+table tbody tr:hover{background:#fff9ea;}
 
-    .dashboard-container {
-         max-width: 1820px;
-    }
+.badge-pending{background:#ffcc00;color:#5a4500;padding:4px 10px;border-radius:6px;}
+.badge-confirmed{background:#28a745;color:#fff;padding:4px 10px;border-radius:6px;}
+.badge-rejected{background:#dc3545;color:#fff;padding:4px 10px;border-radius:6px;}
 
-    .dashboard-title {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #d4af37;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-    .card-stats {
-        border-left: 6px solid #d4af37;
-        transition: 0.2s;
-        background: white;
-        border-radius: 12px;
-    }
-    .card-stats:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 0 18px rgba(212,175,55,0.25);
-    }
-    .filter-section {
-        background: white;
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #eee;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-    }
-    table thead {
-        background: #fff7df;
-        color: #8b6f00;
-        font-weight: 700;
-    }
-    table tbody tr:hover {
-        background: #fff9ea;
-    }
-    .badge-pending { background: #ffcc00; color: #5a4500; padding: 4px 10px; border-radius: 6px; }
-    .badge-confirmed { background: #28a745; color: white; padding: 4px 10px; border-radius: 6px; }
-    .badge-rejected { background: #dc3545; color: white; padding: 4px 10px; border-radius: 6px; }
-    .action-btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+.action-btn{font-size:12px;border-radius:6px;padding:4px 10px;}
 </style>
-
 </head>
 
 <body>
@@ -66,238 +30,195 @@
 
 <div class="dashboard-title">📊 JAGADHA 💗 A to Z Dashboard – Analytics & Reports</div>
 
-<!-- SUMMARY CARDS -->
+<!-- SUMMARY -->
 <div class="row g-3" id="summaryCards"></div>
 
-<!-- FILTER SECTION -->
+<!-- FILTER -->
 <div class="filter-section mt-4">
-    <div class="row g-3">
-        <div class="col-md-4">
-            <input id="searchInput" type="text" placeholder="Search by name, phone, location…" class="form-control">
-        </div>
-        <div class="col-md-3">
-            <select id="statusFilter" class="form-select">
-                <option value="">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Confirmed">Confirmed</option>
-                <option value="Rejected">Rejected</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <select id="serviceFilter" class="form-select">
-                <option value="">All Services</option>
-            </select>
-        </div>
-    </div>
+<div class="row g-3">
+<div class="col-md-4">
+<input id="searchInput" class="form-control" placeholder="Search by name, phone, location">
+</div>
+<div class="col-md-3">
+<select id="statusFilter" class="form-select">
+<option value="">All Status</option>
+<option>Pending</option>
+<option>Confirmed</option>
+<option>Rejected</option>
+</select>
+</div>
+<div class="col-md-3">
+<select id="serviceFilter" class="form-select">
+<option value="">All Services</option>
+</select>
+</div>
+</div>
 </div>
 
 <!-- TABLE -->
 <div class="table-responsive mt-4">
-    <table class="table table-bordered">
-        <thead>
-        <tr>
-            <th>#</th>
-            <th>Received Date & Time</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>Email</th>
-            <th>Service</th>
-            <th>Event Date</th>
-            <th>Location</th>
-            <th>Extras</th>
-            <th>Notes</th>
-            <th>Status</th>
-            <th>Actions</th>
-        </tr>
-        </thead>
-        <tbody id="bookingTable"></tbody>
-    </table>
+<table class="table table-bordered">
+<thead>
+<tr>
+<th>#</th><th>Received</th><th>Name</th><th>Phone</th><th>Email</th>
+<th>Service</th><th>Event Date</th><th>Location</th>
+<th>Extras</th><th>Notes</th><th>Status</th><th>Actions</th>
+</tr>
+</thead>
+<tbody id="bookingTable"></tbody>
+</table>
 </div>
 
 <!-- PAGINATION -->
 <div class="d-flex justify-content-center mt-3">
-    <button id="prevPage" class="btn btn-outline-secondary me-2">Previous</button>
-    <span id="pageNumber" class="mt-2 fw-bold"></span>
-    <button id="nextPage" class="btn btn-outline-secondary ms-2">Next</button>
+<button id="prevPage" class="btn btn-outline-secondary me-2">Previous</button>
+<span id="pageNumber" class="mt-2 fw-bold"></span>
+<button id="nextPage" class="btn btn-outline-secondary ms-2">Next</button>
 </div>
 
 <!-- CHARTS -->
 <div class="row mt-5">
-    <div class="col-md-6"><canvas id="statusChart"></canvas></div>
-    <div class="col-md-6"><canvas id="serviceChart"></canvas></div>
+<div class="col-md-6"><canvas id="statusChart"></canvas></div>
+<div class="col-md-6"><canvas id="serviceChart"></canvas></div>
 </div>
 <div class="row mt-4">
-    <div class="col-md-12"><canvas id="monthlyChart"></canvas></div>
+<div class="col-md-12"><canvas id="monthlyChart"></canvas></div>
 </div>
 
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded",()=>{
 
-const bookingTable = document.getElementById("bookingTable");
-const pageNumber = document.getElementById("pageNumber");
-const searchInput = document.getElementById("searchInput");
-const statusFilter = document.getElementById("statusFilter");
-const serviceFilter = document.getElementById("serviceFilter");
-const prevPage = document.getElementById("prevPage");
-const nextPage = document.getElementById("nextPage");
-const statusChart = document.getElementById("statusChart");
-const serviceChart = document.getElementById("serviceChart");
-const monthlyChart = document.getElementById("monthlyChart");
+const bookingTable=document.getElementById("bookingTable");
+const pageNumber=document.getElementById("pageNumber");
+const searchInput=document.getElementById("searchInput");
+const statusFilter=document.getElementById("statusFilter");
+const serviceFilter=document.getElementById("serviceFilter");
+const prevPage=document.getElementById("prevPage");
+const nextPage=document.getElementById("nextPage");
 
-let bookings = [];
-let filtered = [];
-let currentPage = 1;
-const perPage = 10;
+const statusChartEl=document.getElementById("statusChart");
+const serviceChartEl=document.getElementById("serviceChart");
+const monthlyChartEl=document.getElementById("monthlyChart");
 
-async function loadData() {
-    try {
-        const res = await fetch('/api/bookings', {
-            credentials: 'include'
-        });
+let bookings=[],filtered=[],currentPage=1;
+const perPage=10;
+let c1,c2,c3;
 
-        if (!res.ok) {
-            alert("Session expired. Please login again.");
-            window.location.href = "/login";
-            return;
-        }
-
-        const data = await res.json();
-        console.log("API DATA:", data);
-
-        bookings = data.bookings || [];
-        filtered = bookings;
-
-        loadServices();
-        updateSummaryFromAPI(data);
-        renderTable();
-        updateCharts();
-
-    } catch (err) {
-        console.error("Dashboard load error:", err);
-    }
+async function loadData(){
+const res=await fetch("/api/bookings",{credentials:"include"});
+if(!res.ok){location.href="/login";return;}
+const d=await res.json();
+bookings=[...d.bookings]; filtered=[...bookings];
+renderSummary(d); loadServices(); renderTable(); updateCharts();
 }
 
-function updateSummaryFromAPI(summary) {
-    document.getElementById("summaryCards").innerHTML = `
-        <div class="col-md-3"><div class="card card-stats p-3"><h6>Total</h6><h3>${summary.total}</h3></div></div>
-        <div class="col-md-3"><div class="card card-stats p-3"><h6>Confirmed</h6><h3>${summary.confirmed}</h3></div></div>
-        <div class="col-md-3"><div class="card card-stats p-3"><h6>Pending</h6><h3>${summary.pending}</h3></div></div>
-        <div class="col-md-3"><div class="card card-stats p-3"><h6>Rejected</h6><h3>${summary.rejected}</h3></div></div>
-    `;
-}
-function loadServices() {
-    let services = [...new Set(bookings.map(b => b.service || "Unknown"))];
-    document.getElementById("serviceFilter").innerHTML = '<option value="">All Services</option>' +
-        services.map(s => `<option value="${s}">${s}</option>`).join("");
+function renderSummary(d){
+summaryCards.innerHTML=`
+<div class="col-md-3"><div class="card card-stats p-3"><h6>Total</h6><h3>${d.total}</h3></div></div>
+<div class="col-md-3"><div class="card card-stats p-3"><h6>Confirmed</h6><h3>${d.confirmed}</h3></div></div>
+<div class="col-md-3"><div class="card card-stats p-3"><h6>Pending</h6><h3>${d.pending}</h3></div></div>
+<div class="col-md-3"><div class="card card-stats p-3"><h6>Rejected</h6><h3>${d.rejected}</h3></div></div>`;
 }
 
-function renderTable() {
-    if (!filtered.length) {
-        bookingTable.innerHTML =
-            `<tr><td colspan="12" class="text-center text-muted">No bookings found</td></tr>`;
-        pageNumber.innerText = "";
-        return;
-    }
-
-    let start = (currentPage - 1) * perPage;
-    let pageData = filtered.slice(start, start + perPage);
-    let html = "";
-
-    pageData.forEach((b, i) => {
-        let badge =
-            b.status === "Confirmed" ? `<span class="badge-confirmed">Confirmed</span>` :
-            b.status === "Rejected" ? `<span class="badge-rejected">Rejected</span>` :
-            `<span class="badge-pending">Pending</span>`;
-
-        let received = b.created_at
-            ? new Date(b.created_at).toLocaleString()
-            : "-";
-
-        html += `
-        <tr>
-            <td>${start + i + 1}</td>
-            <td>${received}</td>
-            <td>${b.name || "-"}</td>
-            <td>${b.phone || "-"}</td>
-            <td>${b.customer_email || "-"}</td>
-            <td>${b.service || "-"}</td>
-            <td>${b.event_date || "-"}</td>
-            <td>${b.location || "-"}</td>
-            <td>${b.extras || "-"}</td>
-            <td>${b.notes || "-"}</td>
-            <td>${badge}</td>
-            <td>
-                <button class="btn btn-success btn-sm action-btn"
-                        onclick="updateStatus(${b.id}, 'confirm')">Confirm</button>
-                <button class="btn btn-warning btn-sm action-btn"
-                        onclick="updateStatus(${b.id}, 'reject')">Reject</button>
-                <a href="/delete/${b.id}"
-                   class="btn btn-danger btn-sm action-btn"
-                   onclick="return confirm('Delete booking?')">Delete</a>
-            </td>
-        </tr>`;
-    });
-
-    bookingTable.innerHTML = html;
-    pageNumber.innerText = `Page ${currentPage}`;
+function loadServices(){
+const s=[...new Set(bookings.map(b=>b.service||"Unknown"))];
+serviceFilter.innerHTML='<option value="">All Services</option>'+s.map(x=>`<option>${x}</option>`).join("");
 }
 
-function safe(v){ return (v||"").toLowerCase(); }
-
-function applyFilters() {
-    let q = safe(searchInput.value);
-    let s = statusFilter.value;
-    let svc = serviceFilter.value;
-
-    filtered = bookings.filter(b =>
-        (safe(b.name).includes(q) || safe(b.phone).includes(q) || safe(b.location).includes(q)) &&
-        (!s || b.status === s) &&
-        (!svc || b.service === svc)
-    );
-    currentPage = 1;
-    renderTable();
-    updateCharts();
+function badge(s){
+return s==="Confirmed"?"badge-confirmed":s==="Rejected"?"badge-rejected":"badge-pending";
 }
 
-prevPage.onclick = () => { if (currentPage > 1) { currentPage--; renderTable(); }};
-nextPage.onclick = () => { if (currentPage * perPage < filtered.length) { currentPage++; renderTable(); }};
+function renderTable(){
+if(!filtered.length){
+bookingTable.innerHTML='<tr><td colspan="12" class="text-center text-muted">No bookings found</td></tr>';
+pageNumber.innerText=""; return;
+}
+const start=(currentPage-1)*perPage;
+const page=filtered.slice(start,start+perPage);
 
-async function updateStatus(id, action) {
-    await fetch(`/${action}/${id}`, {
-        credentials: 'include'
-    });
-    await loadData();
+bookingTable.innerHTML=page.map((b,i)=>`
+<tr>
+<td>${start+i+1}</td>
+<td>${new Date(b.created_at).toLocaleString()}</td>
+<td>${b.name}</td>
+<td>${b.phone}</td>
+<td>${b.customer_email||"-"}</td>
+<td>${b.service||"-"}</td>
+<td>${b.event_date||"-"}</td>
+<td>${b.location}</td>
+<td>${b.extras||"-"}</td>
+<td>${b.notes||"-"}</td>
+<td><span class="${badge(b.status)}">${b.status}</span></td>
+<td>
+${b.status==="Pending"?`
+<button class="btn btn-success btn-sm action-btn" onclick="updateStatus(${b.id},'confirm')">Confirm</button>
+<button class="btn btn-warning btn-sm action-btn" onclick="updateStatus(${b.id},'reject')">Reject</button>`:""}
+<a href="/delete/${b.id}" class="btn btn-danger btn-sm action-btn"
+onclick="return confirm('Delete booking?')">Delete</a>
+</td>
+</tr>`).join("");
+
+pageNumber.innerText=`Page ${currentPage}`;
 }
 
-let chart1, chart2, chart3;
-function updateCharts() {
-    if(chart1) chart1.destroy(); if(chart2) chart2.destroy(); if(chart3) chart3.destroy();
+window.updateStatus=async(id,action)=>{
+await fetch(`/${action}/${id}`,{credentials:"include"});
+loadData();
+};
 
-    let statuses = {Pending:0, Confirmed:0, Rejected:0};
-    filtered.forEach(b => statuses[b.status]++);
-
-    chart1 = new Chart(statusChart, { type:'pie', data:{ labels:Object.keys(statuses), datasets:[{data:Object.values(statuses)}] }});
-
-    let services = {}; filtered.forEach(b => services[b.service]=(services[b.service]||0)+1);
-    chart2 = new Chart(serviceChart, { type:'bar', data:{ labels:Object.keys(services), datasets:[{data:Object.values(services)}] }});
-
-    let months = {}; filtered.forEach(b => { let m=b.event_date?.slice(0,7)||"Unknown"; months[m]=(months[m]||0)+1; });
-    chart3 = new Chart(monthlyChart, { type:'line', data:{ labels:Object.keys(months), datasets:[{data:Object.values(months), tension:0.4}] }});
+function applyFilters(){
+const q=searchInput.value.toLowerCase();
+filtered=bookings.filter(b=>
+(!q||(b.name+b.phone+b.location).toLowerCase().includes(q)) &&
+(!statusFilter.value||b.status===statusFilter.value) &&
+(!serviceFilter.value||b.service===serviceFilter.value)
+);
+currentPage=1; renderTable(); updateCharts();
 }
 
-searchInput.onkeyup = applyFilters;
-statusFilter.onchange = applyFilters;
-serviceFilter.onchange = applyFilters;
+searchInput.onkeyup=applyFilters;
+statusFilter.onchange=applyFilters;
+serviceFilter.onchange=applyFilters;
+
+prevPage.onclick=()=>{if(currentPage>1){currentPage--;renderTable();}};
+nextPage.onclick=()=>{if(currentPage*perPage<filtered.length){currentPage++;renderTable();}};
+
+function updateCharts(){
+c1&&c1.destroy(); c2&&c2.destroy(); c3&&c3.destroy();
+
+const s={Pending:0,Confirmed:0,Rejected:0};
+filtered.forEach(b=>s[b.status]++);
+
+c1=new Chart(statusChartEl,{
+type:'pie',
+data:{labels:Object.keys(s),datasets:[{data:Object.values(s)}]}
+});
+
+const svc={};
+filtered.forEach(b=>svc[b.service]=(svc[b.service]||0)+1);
+c2=new Chart(serviceChartEl,{
+type:'bar',
+data:{labels:Object.keys(svc),datasets:[{data:Object.values(svc)}]}
+});
+
+const m={};
+filtered.forEach(b=>{
+const k=b.event_date?.slice(0,7)||"Unknown";
+m[k]=(m[k]||0)+1;
+});
+c3=new Chart(monthlyChartEl,{
+type:'line',
+data:{labels:Object.keys(m),datasets:[{data:Object.values(m),tension:.4}]}
+});
+}
 
 loadData();
-
-// 🔁 Auto refresh dashboard every 10 seconds
-setInterval(() => {
-    loadData();
-}, 10000);
+setInterval(loadData,10000);
+});
+</script>
 
 </body>
 </html>
-

@@ -9,19 +9,45 @@
 </head>
 
 <body class="p-4 bg-light">
+
 <div class="container" style="max-width:720px;">
-<div class="card shadow-sm p-4">
+  <div class="card shadow-sm p-4">
 
 {% if booking %}
 
-<h3 class="text-success mb-3">🎉 Booking Received</h3>
+<!-- ================= HEADER ================= -->
+<h3 class="text-success mb-2">🎉 Booking Received</h3>
+
+<!-- ================= STATUS BADGE ================= -->
+<div class="mb-3">
+  {% if booking.status == 'approved' %}
+    <span class="badge bg-success fs-6 px-3 py-2">✅ Approved</span>
+  {% elif booking.status == 'pending' %}
+    <span class="badge bg-warning text-dark fs-6 px-3 py-2">⏳ Pending Approval</span>
+  {% else %}
+    <span class="badge bg-secondary fs-6 px-3 py-2">ℹ️ Status Unknown</span>
+  {% endif %}
+</div>
 
 <p>
-  Thank you <strong>{{ booking.name }}</strong> —
+  Thank you <strong>{{ booking.name }}</strong>,
   Your booking ID is <strong>#{{ booking.id }}</strong>.
 </p>
 
-<!-- BOOKING DETAILS -->
+<!-- ================= STATUS MESSAGE ================= -->
+{% if booking.status == 'pending' %}
+<div class="alert alert-warning small">
+  ⏳ Your booking is currently under admin review.
+  WhatsApp confirmation will be sent once it is approved.
+</div>
+{% elif booking.status == 'approved' %}
+<div class="alert alert-success small">
+  ✅ Your booking has been approved.
+  WhatsApp confirmation has been sent successfully.
+</div>
+{% endif %}
+
+<!-- ================= BOOKING DETAILS ================= -->
 <ul class="list-group list-group-flush mb-3">
   <li class="list-group-item">
     <b>🕒 Received:</b>
@@ -38,13 +64,13 @@
   <li class="list-group-item"><b>📍 Location:</b> {{ booking.location or "-" }}</li>
 </ul>
 
-<!-- ACTION BUTTONS -->
+<!-- ================= ACTION BUTTONS ================= -->
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="/" class="btn btn-outline-secondary">🏠 Back to Home</a>
 </div>
 
 <!-- ================= WHATSAPP SECTION ================= -->
-{% if wa %}
+{% if wa and booking.status == 'approved' %}
 <hr>
 
 <h5 class="mt-3">📱 WhatsApp Confirmation</h5>
@@ -80,14 +106,17 @@ setTimeout(() => {
 
 <p class="text-muted mt-4 mb-0">
 📧 A confirmation email has been sent to the admin.
-{% if booking.customer_email %} You will also receive a copy.{% endif %}
+{% if booking.customer_email %}
+You will also receive a copy.
+{% endif %}
 </p>
 
 {% else %}
 <p class="text-danger">❌ Booking data unavailable.</p>
 {% endif %}
 
+  </div>
 </div>
-</div>
+
 </body>
 </html>
