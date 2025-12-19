@@ -108,7 +108,7 @@ def send_brevo_email(to_email, subject, html_content):
     }
 
     payload = {
-        "sender": {"name": "JAGADHA A to Z", "email": "noreply@jagadha.com"},
+        "sender": {"name": "JAGADHA A to Z", "email": "Jagadhaeventplanner@gmail.com"},
         "to": [{"email": to_email}],
         "subject": subject,
         "htmlContent": html_content
@@ -259,6 +259,7 @@ def confirm_booking(booking_id):
 
     db = get_db()
     cur = db.cursor()
+
     cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
     booking = cur.fetchone()
 
@@ -266,18 +267,67 @@ def confirm_booking(booking_id):
         flash("Booking not found", "danger")
         return redirect(url_for("admin_dashboard"))
 
-    cur.execute("UPDATE bookings SET status='Confirmed' WHERE id=%s", (booking_id,))
+    # Update status
+    cur.execute(
+        "UPDATE bookings SET status='Confirmed', whatsapp_sent=TRUE WHERE id=%s",
+        (booking_id,)
+    )
     db.commit()
 
+    # Re-fetch updated booking
+    cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
+    booking = cur.fetchone()
+
+    # Send confirmation email
     if booking["customer_email"]:
         send_brevo_email(
             booking["customer_email"],
             "✅ Booking Confirmed — JAGADHA",
-            f"<p>Your booking <b>#{booking_id}</b> is confirmed 🎉</p>"
+            f"""
+            <h3>Booking Confirmed 🎉</h3>
+            <p>Booking ID: <b>#{booking_id}</b></p>
+            <p>Event Date: {booking['event_date']}</p>
+            """
         )
 
+    # WhatsApp redirect
     wa = f"https://wa.me/91{booking['phone']}?text={whatsapp_message(booking)}"
     return redirect(wa)
+
+@app.route("/reject/<int:booking_id>")
+def reject_booking(booking_id):
+    if not session.get("admin"):
+        return redirect(url_for("login"))
+
+    db = get_db()
+    cur = db.cursor()
+
+    cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
+    booking = cur.fetchone()
+
+    if not booking:
+        flash("Booking not found", "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    cur.execute(
+        "UPDATE bookings SET status='Rejected' WHERE id=%s",
+        (booking_id,)
+    )
+    db.commit()
+
+    # Optional rejection email
+    if booking["customer_email"]:
+        send_brevo_email(
+            booking["customer_email"],
+            "❌ Booking Update — JAGADHA",
+            f"""
+            <p>Dear {booking['name']},</p>
+            <p>Your booking request <b>#{booking_id}</b> could not be confirmed.</p>
+            <p>Please contact us for further details.</p>
+            """
+        )
+
+    return redirect(url_for("admin_dashboard"))
 
 # ================= CSV =================
 @app.route("/export_csv")
