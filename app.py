@@ -11,6 +11,7 @@ import io
 import urllib.parse
 from datetime import timedelta
 import requests
+import random
 
 # ===== BREVO SDK =====
 from sib_api_v3_sdk import ApiClient, Configuration
@@ -20,6 +21,7 @@ from sib_api_v3_sdk.api.transactional_emails_api import TransactionalEmailsApi
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919659796217")
+ADMIN_MOBILE = os.getenv("ADMIN_MOBILE", "919659796217")
 
 SITE_URL = os.getenv(
     "SITE_URL",
@@ -391,6 +393,46 @@ if os.getenv("RENDER"):
         SESSION_COOKIE_SECURE=True,
         SESSION_COOKIE_SAMESITE="None"
     )
+
+@app.route("/login-otp", methods=["GET", "POST"])
+def login_otp():
+    if request.method == "POST":
+        step = request.form.get("step")
+
+        if step == "send":
+            mobile = request.form.get("mobile")
+            if mobile != ADMIN_MOBILE:
+                flash("Unauthorized mobile number", "danger")
+                return redirect(url_for("login_otp"))
+
+            otp = random.randint(100000, 999999)
+            session["otp"] = str(otp)
+            session["otp_sent"] = True
+
+            print("ADMIN OTP:", otp)  # 🔐 replace with SMS API later
+            flash("OTP sent successfully", "success")
+            return redirect(url_for("login_otp"))
+
+        if step == "verify":
+            if request.form.get("otp") == session.get("otp"):
+                session.clear()
+                session["admin_logged_in"] = True
+                flash("Login successful", "success")
+                return redirect(url_for("admin_dashboard"))
+            else:
+                flash("Invalid OTP", "danger")
+
+    return render_template("login_otp.html")
+
+@app.route("/logout")
+def logout():
+    return render_template("logout_confirm.html")
+
+@app.route("/logout/confirm")
+def logout_confirm():
+    session.clear()
+    flash("Logged out successfully", "info")
+    return redirect(url_for("login"))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
