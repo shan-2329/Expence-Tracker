@@ -268,29 +268,28 @@ def booking_success(booking_id):
 #     return render_template("login.html")
 
 @app.route("/login", methods=["GET", "POST"])
-def login(username=None):
+def login():
     if request.method == "POST":
-        if username == ADMIN_USER and password == ADMIN_PASS:
-            session["admin"] = True
+        if request.form["username"] == ADMIN_USER and request.form["password"] == ADMIN_PASS:
+            session["admin_logged_in"] = True
+            session.permanent = True
             return redirect(url_for("admin_dashboard"))
-        flash("Invalid credentials", "danger")
-    return render_template("login.html")
 
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
+        flash("Invalid credentials", "danger")
+
+    return render_template("login.html")
 
 @app.route("/admin/dashboard")
 def admin_dashboard():
-    if not session.get("admin"):
+    if not session.get("admin_logged_in"):
         return redirect(url_for("login"))
+
     return render_template("admin_dashboard.html")
 
 # ================= ACTIONS =================
 @app.route("/confirm/<int:booking_id>")
 def confirm_booking(booking_id):
-    if not session.get("admin"):
+    if not session.get("admin_logged_in"):
         return redirect(url_for("login"))
 
     db = get_db()
@@ -322,7 +321,7 @@ def confirm_booking(booking_id):
 
 @app.route("/reject/<int:booking_id>")
 def reject_booking(booking_id):
-    if not session.get("admin"):
+    if not session.get("admin_logged_in"):
         return redirect(url_for("login"))
 
     db = get_db()
@@ -353,7 +352,7 @@ def reject_booking(booking_id):
 # ================= CSV =================
 @app.route("/export_csv")
 def export_csv():
-    if not session.get("admin"):
+    if not session.get("admin_logged_in"):
         return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
@@ -376,7 +375,7 @@ def export_csv():
 
 @app.route("/resend_email/<int:booking_id>")
 def resend_email(booking_id):
-    if not session.get("admin"):
+    if not session.get("admin_logged_in"):
         return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
@@ -426,6 +425,7 @@ def login_otp():
             if request.form.get("otp") == session.get("otp"):
                 session.clear()
                 session["admin_logged_in"] = True
+                session.permanent = True
                 flash("Login successful", "success")
                 return redirect(url_for("admin_dashboard"))
             else:
@@ -434,30 +434,32 @@ def login_otp():
     return render_template("login_otp.html")
 
 @app.route("/api/bookings")
-def api_bookings(bookings=None, total=None, confirmed=None, pending=None, rejected=None):
-    if not session.get("admin"):
+def api_bookings():
+    if not session.get("admin_logged_in"):
         return jsonify({"error": "Unauthorized"}), 401
 
-    # fetch bookings
+    db = get_db()
+    cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM bookings ORDER BY created_at DESC")
+    rows = cur.fetchall()
+
+    stats = {"Confirmed": 0, "Pending": 0, "Rejected": 0}
+    for r in rows:
+        stats[r["status"]] = stats.get(r["status"], 0) + 1
+
     return jsonify({
-        "bookings": bookings,
-        "total": total,
-        "confirmed": confirmed,
-        "pending": pending,
-        "rejected": rejected
+        "bookings": rows,
+        "total": len(rows),
+        "confirmed": stats["Confirmed"],
+        "pending": stats["Pending"],
+        "rejected": stats["Rejected"]
     })
-print("SESSION:", dict(session))
 
-# @app.route("/logout")
-# def logout():
-#     session.clear()
-#     flash("You have been logged out successfully.", "info")
-#     return redirect(url_for("login"))
 
-@app.route("/admin/logout")
-def admin_logout():
+@app.route("/logout")
+def logout():
     session.clear()
-    flash("Admin logged out successfully.", "info")
+    flash("You have been logged out successfully.", "info")
     return redirect(url_for("login"))
 
 if __name__ == "__main__":
