@@ -75,8 +75,19 @@ def create_tables():
     """)
     db.commit()
 
+def ensure_whatsapp_column():
+    """Ensure 'whatsapp_sent' column exists in bookings table."""
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("""
+        ALTER TABLE bookings
+        ADD COLUMN IF NOT EXISTS whatsapp_sent BOOLEAN DEFAULT FALSE;
+    """)
+    db.commit()
+
 with app.app_context():
     create_tables()
+    ensure_whatsapp_column()  # <-- Fix for UndefinedColumn error
 
 # ================= EMAIL (BREVO) =================
 def send_email_via_brevo(
@@ -85,7 +96,6 @@ def send_email_via_brevo(
     status="Pending", booking_id=None
 ):
     """Send email to ADMIN + CUSTOMER with Tamil"""
-
     api_key = os.getenv("BREVO_API_KEY")
     if not api_key:
         app.logger.warning("⚠ BREVO API KEY missing")
@@ -254,19 +264,6 @@ def booking_success(booking_id):
     )
 
 # ================= ADMIN =================
-# @app.route("/login", methods=["GET", "POST"])
-# def login():
-#     if request.method == "POST":
-#         if (
-#             request.form["username"] == ADMIN_USER
-#             and request.form["password"] == ADMIN_PASS
-#         ):
-#             session.permanent = True
-#             session["admin"] = True
-#             return redirect(url_for("admin_dashboard"))
-#         flash("Invalid credentials", "danger")
-#     return render_template("login.html")
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -294,7 +291,6 @@ def confirm_booking(booking_id):
 
     db = get_db()
     cur = db.cursor(cursor_factory=RealDictCursor)
-
     cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
     booking = cur.fetchone()
 
@@ -395,13 +391,7 @@ def resend_email(booking_id):
 
     return jsonify({"success": True})
 
-# ================= RUN =================
-if os.getenv("RENDER"):
-    app.config.update(
-        SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_SAMESITE="None"
-    )
-
+# ================= OTP LOGIN =================
 @app.route("/login-otp", methods=["GET", "POST"])
 def login_otp():
     if request.method == "POST":
@@ -433,6 +423,7 @@ def login_otp():
 
     return render_template("login_otp.html")
 
+# ================= API =================
 @app.route("/api/bookings")
 def api_bookings():
     if not session.get("admin_logged_in"):
@@ -455,12 +446,17 @@ def api_bookings():
         "rejected": stats["Rejected"]
     })
 
-
 @app.route("/logout")
 def logout():
     session.clear()
     flash("You have been logged out successfully.", "info")
     return redirect(url_for("login"))
 
+# ================= RUN =================
 if __name__ == "__main__":
+    if os.getenv("RENDER"):
+        app.config.update(
+            SESSION_COOKIE_SECURE=True,
+            SESSION_COOKIE_SAMESITE="None"
+        )
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
