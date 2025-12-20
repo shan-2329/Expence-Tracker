@@ -128,15 +128,30 @@
       margin-bottom:1.8rem;
     }
 
-    .blink-text span{
-      display:inline-block;
-      animation:blink 1.8s infinite;
-      animation-delay:calc(var(--i)*.1s);
+    .blink-text{
+      font-weight:700;
     }
 
-    @keyframes blink{
-      0%,100%{opacity:1}
-      50%{opacity:.35}
+    .blink-text span{
+      display:inline-block;
+      padding:4px 6px;
+      margin:1px;
+      border-radius:6px;
+
+      color:#5a4500;                 /* text color fixed */
+      background-color:#ffe8a1;      /* base background */
+
+      animation: blink-bg 1.8s infinite;
+      animation-delay: calc(var(--i) * 0.1s);
+    }
+
+    @keyframes blink-bg{
+      0%,100%{
+        background-color:#ffe8a1;
+      }
+      50%{
+        background-color:#ffd43b;
+      }
     }
 
     .service-item{
@@ -190,7 +205,7 @@
     <div class="mt-3">
       <a href="/book" class="btn btn-gold btn-lg">
         Book Your Event
-        <span class="cta-arrow">➡</span>
+        <span class="cta-arrow">👈</span>
       </a>
     </div>
   </div>
