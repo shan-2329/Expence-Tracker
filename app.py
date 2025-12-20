@@ -13,7 +13,6 @@ from datetime import timedelta
 import requests
 import random
 
-from pymsgbox import password
 # ===== BREVO SDK =====
 from sib_api_v3_sdk import ApiClient, Configuration
 from sib_api_v3_sdk.api.transactional_emails_api import TransactionalEmailsApi
