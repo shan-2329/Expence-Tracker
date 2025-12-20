@@ -198,33 +198,47 @@ function renderTable(){
   const start=(currentPage-1)*perPage;
   const page=filtered.slice(start,start+perPage);
 
-  bookingTable.innerHTML=page.map((b,i)=>`
-  <tr>
-    <td>${start+i+1}</td>
-    <td>${new Date(b.created_at).toLocaleString()}</td>
-    <td>${b.name}</td>
-    <td>${b.phone}</td>
-    <td>${b.customer_email||"-"}</td>
-    <td>${b.service||"-"}</td>
-    <td>${b.event_date||"-"}</td>
-    <td>${b.location}</td>
-    <td>${b.extras||"-"}</td>
-    <td>${b.notes||"-"}</td>
-    <td><span class="${badge(b.status)}">${b.status}</span></td>
-    <td>
-      ${b.status==="Pending"?`
-        <button class="btn btn-success btn-sm action-btn"
-          onclick="updateStatus(${b.id},'confirm')">Confirm</button>
-        <button class="btn btn-warning btn-sm action-btn"
-          onclick="updateStatus(${b.id},'reject')">Reject</button>
-      `:""}
-      <button class="btn btn-info btn-sm action-btn"
-        onclick="resendEmail(${b.id})">Resend Email</button>
-      <a href="/delete/${b.id}"
-        class="btn btn-danger btn-sm action-btn"
-        onclick="return confirm('Delete booking?')">Delete</a>
-    </td>
-  </tr>`).join("");
+  bookingTable.innerHTML=page.map((b,i)=>{
+    // Format Event Date
+    let eventDate="-";
+    if(b.event_date){
+      const d=new Date(b.event_date);
+      eventDate = d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+
+    return `
+    <tr>
+      <td>${start+i+1}</td>
+      <td>${new Date(b.created_at).toLocaleString()}</td>
+      <td>${b.name}</td>
+      <td>${b.phone}</td>
+      <td>${b.customer_email||"-"}</td>
+      <td>${b.service||"-"}</td>
+      <td>${eventDate}</td>
+      <td>${b.location}</td>
+      <td>${b.extras||"-"}</td>
+      <td>${b.notes||"-"}</td>
+      <td><span class="${badge(b.status)}">${b.status}</span></td>
+      <td>
+        ${b.status==="Pending"?`
+          <button class="btn btn-success btn-sm action-btn"
+            onclick="updateStatus(${b.id},'confirm')">Confirm</button>
+          <button class="btn btn-warning btn-sm action-btn"
+            onclick="updateStatus(${b.id},'reject')">Reject</button>
+        `:""}
+        <button class="btn btn-info btn-sm action-btn"
+          onclick="resendEmail(${b.id})">Resend Email</button>
+        <a href="/delete/${b.id}"
+          class="btn btn-danger btn-sm action-btn"
+          onclick="return confirm('Delete booking?')">Delete</a>
+      </td>
+    </tr>`;
+  }).join("");
 
   pageNumber.innerText=`Page ${currentPage}`;
 }
