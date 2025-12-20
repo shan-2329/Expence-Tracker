@@ -11,9 +11,12 @@
 body { background:#f8f9fc; font-family:"Nunito",sans-serif; }
 .dashboard-container{max-width:1820px;}
 .dashboard-title{font-size:2rem;font-weight:700;color:#d4af37;text-align:center;margin-bottom:20px;}
+
 .card-stats{border-left:6px solid #d4af37;background:#fff;border-radius:12px;transition:.2s;}
 .card-stats:hover{transform:translateY(-5px);box-shadow:0 0 18px rgba(212,175,55,.25);}
+
 .filter-section{background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.05);}
+
 table thead{background:#fff7df;color:#8b6f00;}
 table tbody tr:hover{background:#fff9ea;}
 
@@ -21,7 +24,7 @@ table tbody tr:hover{background:#fff9ea;}
 .badge-confirmed{background:#28a745;color:#fff;padding:4px 10px;border-radius:6px;}
 .badge-rejected{background:#dc3545;color:#fff;padding:4px 10px;border-radius:6px;}
 
-.action-btn{font-size:12px;border-radius:6px;padding:4px 10px;}
+.action-btn{font-size:12px;border-radius:6px;padding:4px 10px;margin:2px;}
 </style>
 </head>
 
@@ -35,29 +38,29 @@ table tbody tr:hover{background:#fff9ea;}
 
 <!-- FILTER -->
 <div class="filter-section mt-4">
-<div class="row g-3">
-<div class="col-md-4">
-<input id="searchInput" class="form-control" placeholder="Search by name, phone, location">
-</div>
-<div class="col-md-3">
-<select id="statusFilter" class="form-select">
-<option value="">All Status</option>
-<option>Pending</option>
-<option>Confirmed</option>
-<option>Rejected</option>
-</select>
-</div>
-<div class="col-md-3">
-<select id="serviceFilter" class="form-select">
-<option value="">All Services</option>
-</select>
-</div>
-</div>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <input id="searchInput" class="form-control" placeholder="Search by name, phone, location">
+    </div>
+    <div class="col-md-3">
+      <select id="statusFilter" class="form-select">
+        <option value="">All Status</option>
+        <option>Pending</option>
+        <option>Confirmed</option>
+        <option>Rejected</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <select id="serviceFilter" class="form-select">
+        <option value="">All Services</option>
+      </select>
+    </div>
+  </div>
 </div>
 
 <!-- TABLE -->
 <div class="table-responsive mt-4">
-<table class="table table-bordered">
+<table class="table table-bordered align-middle">
 <thead>
 <tr>
 <th>#</th><th>Received</th><th>Name</th><th>Phone</th><th>Email</th>
@@ -78,11 +81,11 @@ table tbody tr:hover{background:#fff9ea;}
 
 <!-- CHARTS -->
 <div class="row mt-5">
-<div class="col-md-6"><canvas id="statusChart"></canvas></div>
-<div class="col-md-6"><canvas id="serviceChart"></canvas></div>
+  <div class="col-md-6"><canvas id="statusChart"></canvas></div>
+  <div class="col-md-6"><canvas id="serviceChart"></canvas></div>
 </div>
 <div class="row mt-4">
-<div class="col-md-12"><canvas id="monthlyChart"></canvas></div>
+  <div class="col-md-12"><canvas id="monthlyChart"></canvas></div>
 </div>
 
 </div>
@@ -97,6 +100,7 @@ const statusFilter=document.getElementById("statusFilter");
 const serviceFilter=document.getElementById("serviceFilter");
 const prevPage=document.getElementById("prevPage");
 const nextPage=document.getElementById("nextPage");
+const summaryCards=document.getElementById("summaryCards");
 
 const statusChartEl=document.getElementById("statusChart");
 const serviceChartEl=document.getElementById("serviceChart");
@@ -107,76 +111,91 @@ const perPage=10;
 let c1,c2,c3;
 
 async function loadData(){
-const res=await fetch("/api/bookings",{credentials:"include"});
-if(!res.ok){location.href="/login";return;}
-const d=await res.json();
-bookings=[...d.bookings]; filtered=[...bookings];
-renderSummary(d); loadServices(); renderTable(); updateCharts();
+  const res=await fetch("/api/bookings",{credentials:"include"});
+  if(!res.ok){location.href="/login";return;}
+  const d=await res.json();
+  bookings=[...d.bookings];
+  filtered=[...bookings];
+  renderSummary(d);
+  loadServices();
+  renderTable();
+  updateCharts();
 }
 
 function renderSummary(d){
-summaryCards.innerHTML=`
-<div class="col-md-3"><div class="card card-stats p-3"><h6>Total</h6><h3>${d.total}</h3></div></div>
-<div class="col-md-3"><div class="card card-stats p-3"><h6>Confirmed</h6><h3>${d.confirmed}</h3></div></div>
-<div class="col-md-3"><div class="card card-stats p-3"><h6>Pending</h6><h3>${d.pending}</h3></div></div>
-<div class="col-md-3"><div class="card card-stats p-3"><h6>Rejected</h6><h3>${d.rejected}</h3></div></div>`;
+  summaryCards.innerHTML=`
+  <div class="col-md-3"><div class="card card-stats p-3"><h6>Total</h6><h3>${d.total}</h3></div></div>
+  <div class="col-md-3"><div class="card card-stats p-3"><h6>Confirmed</h6><h3>${d.confirmed}</h3></div></div>
+  <div class="col-md-3"><div class="card card-stats p-3"><h6>Pending</h6><h3>${d.pending}</h3></div></div>
+  <div class="col-md-3"><div class="card card-stats p-3"><h6>Rejected</h6><h3>${d.rejected}</h3></div></div>`;
 }
 
 function loadServices(){
-const s=[...new Set(bookings.map(b=>b.service||"Unknown"))];
-serviceFilter.innerHTML='<option value="">All Services</option>'+s.map(x=>`<option>${x}</option>`).join("");
+  const s=[...new Set(bookings.map(b=>b.service||"Unknown"))];
+  serviceFilter.innerHTML='<option value="">All Services</option>'+s.map(x=>`<option>${x}</option>`).join("");
 }
 
 function badge(s){
-return s==="Confirmed"?"badge-confirmed":s==="Rejected"?"badge-rejected":"badge-pending";
+  return s==="Confirmed"?"badge-confirmed":s==="Rejected"?"badge-rejected":"badge-pending";
 }
 
 function renderTable(){
-if(!filtered.length){
-bookingTable.innerHTML='<tr><td colspan="12" class="text-center text-muted">No bookings found</td></tr>';
-pageNumber.innerText=""; return;
-}
-const start=(currentPage-1)*perPage;
-const page=filtered.slice(start,start+perPage);
+  if(!filtered.length){
+    bookingTable.innerHTML='<tr><td colspan="12" class="text-center text-muted">No bookings found</td></tr>';
+    pageNumber.innerText=""; return;
+  }
 
-bookingTable.innerHTML=page.map((b,i)=>`
-<tr>
-<td>${start+i+1}</td>
-<td>${new Date(b.created_at).toLocaleString()}</td>
-<td>${b.name}</td>
-<td>${b.phone}</td>
-<td>${b.customer_email||"-"}</td>
-<td>${b.service||"-"}</td>
-<td>${b.event_date||"-"}</td>
-<td>${b.location}</td>
-<td>${b.extras||"-"}</td>
-<td>${b.notes||"-"}</td>
-<td><span class="${badge(b.status)}">${b.status}</span></td>
-<td>
-${b.status==="Pending"?`
-<button class="btn btn-success btn-sm action-btn" onclick="updateStatus(${b.id},'confirm')">Confirm</button>
-<button class="btn btn-warning btn-sm action-btn" onclick="updateStatus(${b.id},'reject')">Reject</button>`:""}
-<a href="/delete/${b.id}" class="btn btn-danger btn-sm action-btn"
-onclick="return confirm('Delete booking?')">Delete</a>
-</td>
-</tr>`).join("");
+  const start=(currentPage-1)*perPage;
+  const page=filtered.slice(start,start+perPage);
 
-pageNumber.innerText=`Page ${currentPage}`;
+  bookingTable.innerHTML=page.map((b,i)=>`
+  <tr>
+    <td>${start+i+1}</td>
+    <td>${new Date(b.created_at).toLocaleString()}</td>
+    <td>${b.name}</td>
+    <td>${b.phone}</td>
+    <td>${b.customer_email||"-"}</td>
+    <td>${b.service||"-"}</td>
+    <td>${b.event_date||"-"}</td>
+    <td>${b.location}</td>
+    <td>${b.extras||"-"}</td>
+    <td>${b.notes||"-"}</td>
+    <td><span class="${badge(b.status)}">${b.status}</span></td>
+    <td>
+      ${b.status==="Pending"?`
+        <button class="btn btn-success btn-sm action-btn" onclick="updateStatus(${b.id},'confirm')">Confirm</button>
+        <button class="btn btn-warning btn-sm action-btn" onclick="updateStatus(${b.id},'reject')">Reject</button>
+      `:""}
+      <button class="btn btn-info btn-sm action-btn" onclick="resendEmail(${b.id})">Resend Email</button>
+      <a href="/delete/${b.id}" class="btn btn-danger btn-sm action-btn"
+         onclick="return confirm('Delete booking?')">Delete</a>
+    </td>
+  </tr>`).join("");
+
+  pageNumber.innerText=`Page ${currentPage}`;
 }
 
 window.updateStatus=async(id,action)=>{
-await fetch(`/${action}/${id}`,{credentials:"include"});
-loadData();
+  if(!confirm("Are you sure?")) return;
+  await fetch(`/${action}/${id}`,{credentials:"include"});
+  loadData();
+};
+
+window.resendEmail=async(id)=>{
+  await fetch(`/resend_email/${id}`,{credentials:"include"});
+  alert("📧 Email sent again");
 };
 
 function applyFilters(){
-const q=searchInput.value.toLowerCase();
-filtered=bookings.filter(b=>
-(!q||(b.name+b.phone+b.location).toLowerCase().includes(q)) &&
-(!statusFilter.value||b.status===statusFilter.value) &&
-(!serviceFilter.value||b.service===serviceFilter.value)
-);
-currentPage=1; renderTable(); updateCharts();
+  const q=searchInput.value.toLowerCase();
+  filtered=bookings.filter(b=>
+    (!q||(b.name+b.phone+b.location).toLowerCase().includes(q)) &&
+    (!statusFilter.value||b.status===statusFilter.value) &&
+    (!serviceFilter.value||b.service===serviceFilter.value)
+  );
+  currentPage=1;
+  renderTable();
+  updateCharts();
 }
 
 searchInput.onkeyup=applyFilters;
@@ -187,32 +206,32 @@ prevPage.onclick=()=>{if(currentPage>1){currentPage--;renderTable();}};
 nextPage.onclick=()=>{if(currentPage*perPage<filtered.length){currentPage++;renderTable();}};
 
 function updateCharts(){
-c1&&c1.destroy(); c2&&c2.destroy(); c3&&c3.destroy();
+  c1&&c1.destroy(); c2&&c2.destroy(); c3&&c3.destroy();
 
-const s={Pending:0,Confirmed:0,Rejected:0};
-filtered.forEach(b=>s[b.status]++);
+  const s={Pending:0,Confirmed:0,Rejected:0};
+  filtered.forEach(b=>s[b.status]++);
 
-c1=new Chart(statusChartEl,{
-type:'pie',
-data:{labels:Object.keys(s),datasets:[{data:Object.values(s)}]}
-});
+  c1=new Chart(statusChartEl,{
+    type:'pie',
+    data:{labels:Object.keys(s),datasets:[{data:Object.values(s)}]}
+  });
 
-const svc={};
-filtered.forEach(b=>svc[b.service]=(svc[b.service]||0)+1);
-c2=new Chart(serviceChartEl,{
-type:'bar',
-data:{labels:Object.keys(svc),datasets:[{data:Object.values(svc)}]}
-});
+  const svc={};
+  filtered.forEach(b=>svc[b.service]=(svc[b.service]||0)+1);
+  c2=new Chart(serviceChartEl,{
+    type:'bar',
+    data:{labels:Object.keys(svc),datasets:[{data:Object.values(svc)}]}
+  });
 
-const m={};
-filtered.forEach(b=>{
-const k=b.event_date?.slice(0,7)||"Unknown";
-m[k]=(m[k]||0)+1;
-});
-c3=new Chart(monthlyChartEl,{
-type:'line',
-data:{labels:Object.keys(m),datasets:[{data:Object.values(m),tension:.4}]}
-});
+  const m={};
+  filtered.forEach(b=>{
+    const k=b.event_date?.slice(0,7)||"Unknown";
+    m[k]=(m[k]||0)+1;
+  });
+  c3=new Chart(monthlyChartEl,{
+    type:'line',
+    data:{labels:Object.keys(m),datasets:[{data:Object.values(m),tension:.4}]}
+  });
 }
 
 loadData();
