@@ -447,6 +447,7 @@ def api_bookings(bookings=None, total=None, confirmed=None, pending=None, reject
         "pending": pending,
         "rejected": rejected
     })
+print("SESSION:", dict(session))
 
 # @app.route("/logout")
 # def logout():
