@@ -13,6 +13,7 @@ from datetime import timedelta
 import requests
 import random
 
+from pymsgbox import password
 # ===== BREVO SDK =====
 from sib_api_v3_sdk import ApiClient, Configuration
 from sib_api_v3_sdk.api.transactional_emails_api import TransactionalEmailsApi
@@ -254,14 +255,23 @@ def booking_success(booking_id):
     )
 
 # ================= ADMIN =================
+# @app.route("/login", methods=["GET", "POST"])
+# def login():
+#     if request.method == "POST":
+#         if (
+#             request.form["username"] == ADMIN_USER
+#             and request.form["password"] == ADMIN_PASS
+#         ):
+#             session.permanent = True
+#             session["admin"] = True
+#             return redirect(url_for("admin_dashboard"))
+#         flash("Invalid credentials", "danger")
+#     return render_template("login.html")
+
 @app.route("/login", methods=["GET", "POST"])
-def login():
+def login(username=None):
     if request.method == "POST":
-        if (
-            request.form["username"] == ADMIN_USER
-            and request.form["password"] == ADMIN_PASS
-        ):
-            session.permanent = True
+        if username == ADMIN_USER and password == ADMIN_PASS:
             session["admin"] = True
             return redirect(url_for("admin_dashboard"))
         flash("Invalid credentials", "danger")
@@ -423,6 +433,20 @@ def login_otp():
                 flash("Invalid OTP", "danger")
 
     return render_template("login_otp.html")
+
+@app.route("/api/bookings")
+def api_bookings(bookings=None, total=None, confirmed=None, pending=None, rejected=None):
+    if not session.get("admin"):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # fetch bookings
+    return jsonify({
+        "bookings": bookings,
+        "total": total,
+        "confirmed": confirmed,
+        "pending": pending,
+        "rejected": rejected
+    })
 
 # @app.route("/logout")
 # def logout():
