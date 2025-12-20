@@ -133,27 +133,18 @@
     }
 
     .blink-text span{
-      display:inline-block;
-      padding:4px 6px;
-      margin:1px;
+      color:#5a4500;
+      background:#ffe8a1;
+      padding:2px 6px;
       border-radius:6px;
-
-      color:#5a4500;                 /* text color fixed */
-      background-color:#ffe8a1;      /* base background */
-
-      animation: blink-bg 1.8s infinite;
-      animation-delay: calc(var(--i) * 0.1s);
+      animation:bgBlink 1.8s infinite;
+      animation-delay:calc(var(--i)*.1s);
     }
 
-    @keyframes blink-bg{
-      0%,100%{
-        background-color:#ffe8a1;
-      }
-      50%{
-        background-color:#ffd43b;
-      }
+    @keyframes bgBlink{
+      0%,100%{background:#ffe8a1}
+      50%{background:#ffd966}
     }
-
     .service-item{
       padding:.9rem 1.1rem;
       border-radius:12px;
@@ -216,9 +207,7 @@
   <div class="container services">
 
     <h2 class="blink-text">
-      <span style="--i:1">Our</span>
-      <span style="--i:4"> </span>
-      <span style="--i:5">Services</span>
+      <span style="--i:1">Our Services</span>
     </h2>
 
     <div class="row g-3">
@@ -250,4 +239,3 @@
 
 </body>
 </html>
-
