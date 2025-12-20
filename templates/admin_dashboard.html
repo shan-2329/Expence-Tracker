@@ -99,6 +99,25 @@ table tbody tr:hover{background:#fff9ea;}
   color:#fff;
 }
 
+.table-box{
+  background: linear-gradient(135deg, #fff7df, #ffffff);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.08);
+  border: 1px solid #ffe8a1;
+}
+
+.table-title{
+  background:#ffe8a1;
+  color:#7a5a00;
+  padding:10px 16px;
+  border-radius:10px;
+  font-weight:700;
+  margin-bottom:12px;
+}
+
+
+
 </style>
 </head>
 
@@ -136,8 +155,12 @@ table tbody tr:hover{background:#fff9ea;}
   </div>
 </div>
 
+<div class="table-title">
+  📋 Booking Details
+</div>
+
 <!-- TABLE -->
-<div class="table-responsive mt-4">
+<div class="table-responsive mt-4 table-box">
 <table class="table table-bordered align-middle">
 <thead>
 <tr>
@@ -322,8 +345,27 @@ function renderTable(){
     </tr>`;
   }).join("");
 
-  pageNumber.innerText=`Page ${currentPage}`;
+    const totalPages = Math.ceil(filtered.length / perPage);
+    pageNumber.innerText = `Page ${currentPage} of ${totalPages}`;
+
+    prevPage.disabled = currentPage === 1;
+    nextPage.disabled = currentPage === totalPages;
 }
+
+prevPage.onclick = () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderTable();
+  }
+};
+
+nextPage.onclick = () => {
+  const totalPages = Math.ceil(filtered.length / perPage);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderTable();
+  }
+};
 
 window.updateStatus=async(id,action)=>{
   if(!confirm("Are you sure?"))return;
@@ -354,7 +396,7 @@ setInterval(loadData,30000);
 });
 
 window.sendWhatsApp = (phone, name, service, eventDate, extras, location, notes) => {
-  if(!phone) {
+  if (!phone) {
     alert("Phone number not available");
     return;
   }
@@ -368,7 +410,10 @@ Thank you for contacting *JAGADHA 💗 A to Z*
 📍 Location: ${location}
 📝 Notes: ${notes}
 
-Please let us know if you need any assistance.`;
+Please let us know if you need any assistance.
+உங்களுக்கு ஏதேனும் உதவி தேவைப்பட்டால் எங்களுக்குத் தெரியப்படுத்துங்கள்.
+
+📞 Contact: 96597 96217`;
 
   const url = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
   window.open(url, "_blank");
