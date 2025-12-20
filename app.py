@@ -424,14 +424,16 @@ def login_otp():
 
     return render_template("login_otp.html")
 
-@app.route("/logout")
-def logout():
-    return render_template("logout_confirm.html")
+# @app.route("/logout")
+# def logout():
+#     session.clear()
+#     flash("You have been logged out successfully.", "info")
+#     return redirect(url_for("login"))
 
-@app.route("/logout/confirm")
-def logout_confirm():
+@app.route("/admin/logout")
+def admin_logout():
     session.clear()
-    flash("Logged out successfully", "info")
+    flash("Admin logged out successfully.", "info")
     return redirect(url_for("login"))
 
 if __name__ == "__main__":
