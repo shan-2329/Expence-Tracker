@@ -9,29 +9,72 @@
 
 <style>
 body { background:#f8f9fc; font-family:"Nunito",sans-serif; }
+
 .dashboard-container{max-width:1820px;}
-.dashboard-title{font-size:2rem;font-weight:700;color:#d4af37;text-align:center;margin-bottom:20px;}
 
-.card-stats{border-left:6px solid #d4af37;background:#fff;border-radius:12px;transition:.2s;}
-.card-stats:hover{transform:translateY(-5px);box-shadow:0 0 18px rgba(212,175,55,.25);}
+.dashboard-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:15px;
+}
 
-.filter-section{background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.05);}
+.dashboard-title{
+  font-size:2rem;
+  font-weight:700;
+  color:#d4af37;
+}
 
-table thead{background:#fff7df;color:#8b6f00;}
+.card-stats{
+  border-left:6px solid #d4af37;
+  background:#fff;
+  border-radius:12px;
+  transition:.2s;
+}
+.card-stats:hover{
+  transform:translateY(-5px);
+  box-shadow:0 0 18px rgba(212,175,55,.25);
+}
+
+.filter-section{
+  background:#fff;
+  padding:15px;
+  border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.05);
+}
+
+table thead{
+  background:#fff7df;
+  color:#8b6f00;
+}
+
 table tbody tr:hover{background:#fff9ea;}
 
 .badge-pending{background:#ffcc00;color:#5a4500;padding:4px 10px;border-radius:6px;}
 .badge-confirmed{background:#28a745;color:#fff;padding:4px 10px;border-radius:6px;}
 .badge-rejected{background:#dc3545;color:#fff;padding:4px 10px;border-radius:6px;}
 
-.action-btn{font-size:12px;border-radius:6px;padding:4px 10px;margin:2px;}
+.action-btn{
+  font-size:12px;
+  border-radius:6px;
+  padding:4px 10px;
+  margin:2px;
+}
 </style>
 </head>
 
 <body>
 <div class="container dashboard-container mt-4">
 
-<div class="dashboard-title">📊 JAGADHA 💗 A to Z Dashboard – Analytics & Reports</div>
+<!-- HEADER -->
+<div class="dashboard-header">
+  <div class="dashboard-title">
+    📊 JAGADHA 💗 A to Z – Admin Dashboard
+  </div>
+  <a href="/logout" class="btn btn-outline-danger btn-sm">
+    🚪 Logout
+  </a>
+</div>
 
 <!-- SUMMARY -->
 <div class="row g-3" id="summaryCards"></div>
@@ -74,9 +117,9 @@ table tbody tr:hover{background:#fff9ea;}
 
 <!-- PAGINATION -->
 <div class="d-flex justify-content-center mt-3">
-<button id="prevPage" class="btn btn-outline-secondary me-2">Previous</button>
-<span id="pageNumber" class="mt-2 fw-bold"></span>
-<button id="nextPage" class="btn btn-outline-secondary ms-2">Next</button>
+  <button id="prevPage" class="btn btn-outline-secondary me-2">Previous</button>
+  <span id="pageNumber" class="mt-2 fw-bold"></span>
+  <button id="nextPage" class="btn btn-outline-secondary ms-2">Next</button>
 </div>
 
 <!-- CHARTS -->
@@ -132,17 +175,21 @@ function renderSummary(d){
 
 function loadServices(){
   const s=[...new Set(bookings.map(b=>b.service||"Unknown"))];
-  serviceFilter.innerHTML='<option value="">All Services</option>'+s.map(x=>`<option>${x}</option>`).join("");
+  serviceFilter.innerHTML='<option value="">All Services</option>'+
+    s.map(x=>`<option>${x}</option>`).join("");
 }
 
 function badge(s){
-  return s==="Confirmed"?"badge-confirmed":s==="Rejected"?"badge-rejected":"badge-pending";
+  return s==="Confirmed"?"badge-confirmed":
+         s==="Rejected"?"badge-rejected":"badge-pending";
 }
 
 function renderTable(){
   if(!filtered.length){
-    bookingTable.innerHTML='<tr><td colspan="12" class="text-center text-muted">No bookings found</td></tr>';
-    pageNumber.innerText=""; return;
+    bookingTable.innerHTML=
+      '<tr><td colspan="12" class="text-center text-muted">No bookings found</td></tr>';
+    pageNumber.innerText="";
+    return;
   }
 
   const start=(currentPage-1)*perPage;
@@ -163,12 +210,16 @@ function renderTable(){
     <td><span class="${badge(b.status)}">${b.status}</span></td>
     <td>
       ${b.status==="Pending"?`
-        <button class="btn btn-success btn-sm action-btn" onclick="updateStatus(${b.id},'confirm')">Confirm</button>
-        <button class="btn btn-warning btn-sm action-btn" onclick="updateStatus(${b.id},'reject')">Reject</button>
+        <button class="btn btn-success btn-sm action-btn"
+          onclick="updateStatus(${b.id},'confirm')">Confirm</button>
+        <button class="btn btn-warning btn-sm action-btn"
+          onclick="updateStatus(${b.id},'reject')">Reject</button>
       `:""}
-      <button class="btn btn-info btn-sm action-btn" onclick="resendEmail(${b.id})">Resend Email</button>
-      <a href="/delete/${b.id}" class="btn btn-danger btn-sm action-btn"
-         onclick="return confirm('Delete booking?')">Delete</a>
+      <button class="btn btn-info btn-sm action-btn"
+        onclick="resendEmail(${b.id})">Resend Email</button>
+      <a href="/delete/${b.id}"
+        class="btn btn-danger btn-sm action-btn"
+        onclick="return confirm('Delete booking?')">Delete</a>
     </td>
   </tr>`).join("");
 
@@ -213,14 +264,22 @@ function updateCharts(){
 
   c1=new Chart(statusChartEl,{
     type:'pie',
-    data:{labels:Object.keys(s),datasets:[{data:Object.values(s)}]}
+    data:{
+      labels:Object.keys(s),
+      datasets:[{data:Object.values(s),
+        backgroundColor:['#ffcc00','#28a745','#dc3545']}]
+    }
   });
 
   const svc={};
   filtered.forEach(b=>svc[b.service]=(svc[b.service]||0)+1);
+
   c2=new Chart(serviceChartEl,{
     type:'bar',
-    data:{labels:Object.keys(svc),datasets:[{data:Object.values(svc)}]}
+    data:{
+      labels:Object.keys(svc),
+      datasets:[{data:Object.values(svc),backgroundColor:'#d4af37'}]
+    }
   });
 
   const m={};
@@ -228,9 +287,13 @@ function updateCharts(){
     const k=b.event_date?.slice(0,7)||"Unknown";
     m[k]=(m[k]||0)+1;
   });
+
   c3=new Chart(monthlyChartEl,{
     type:'line',
-    data:{labels:Object.keys(m),datasets:[{data:Object.values(m),tension:.4}]}
+    data:{
+      labels:Object.keys(m),
+      datasets:[{data:Object.values(m),borderColor:'#d4af37',tension:.4}]
+    }
   });
 }
 
