@@ -88,6 +88,17 @@ table tbody tr:hover{background:#fff9ea;}
   padding:4px 10px;
   margin:2px;
 }
+
+.whatsapp-btn{
+  background:#25D366;
+  color:#fff;
+}
+
+.whatsapp-btn:hover{
+  background:#1ebe5d;
+  color:#fff;
+}
+
 </style>
 </head>
 
@@ -283,10 +294,31 @@ function renderTable(){
       <td>${b.notes||"-"}</td>
       <td><span class="${badge(b.status)}">${b.status}</span></td>
       <td>
+        <button class="btn btn-success btn-sm action-btn whatsapp-btn"
+          onclick="sendWhatsApp(
+                      '${b.phone}',
+                      '${b.name}',
+                      '${b.service}',
+                      '${eventDate}',
+                      '${b.extras || "-"}',
+                      '${b.location || "-"}',
+                      '${b.notes || "-"}'
+                    )">
+          <i class="bi bi-whatsapp"></i>
+        </button>
+
         ${b.status==="Pending"?`
-        <button class="btn btn-success btn-sm action-btn" onclick="updateStatus(${b.id},'confirm')">Confirm</button>
-        <button class="btn btn-warning btn-sm action-btn" onclick="updateStatus(${b.id},'reject')">Reject</button>`:""}
+        <button class="btn btn-success btn-sm action-btn"
+          onclick="updateStatus(${b.id},'confirm')">
+          Confirm
+        </button>
+
+        <button class="btn btn-danger btn-sm action-btn"
+          onclick="updateStatus(${b.id},'reject')">
+          Reject
+        </button>`:""}
       </td>
+
     </tr>`;
   }).join("");
 
@@ -320,6 +352,28 @@ function updateCharts(){ /* unchanged */ }
 loadData();
 setInterval(loadData,30000);
 });
+
+window.sendWhatsApp = (phone, name, service, eventDate, extras, location, notes) => {
+  if(!phone) {
+    alert("Phone number not available");
+    return;
+  }
+
+  const msg = `Hello ${name} 👋
+Thank you for contacting *JAGADHA 💗 A to Z*
+
+📌 Service: ${service}
+📅 Event Date: ${eventDate}
+✨ Extras: ${extras}
+📍 Location: ${location}
+📝 Notes: ${notes}
+
+Please let us know if you need any assistance.`;
+
+  const url = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank");
+};
+
 </script>
 
 </body>
