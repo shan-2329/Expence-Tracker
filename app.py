@@ -4,21 +4,31 @@ from flask import (
 )
 import psycopg2
 import psycopg2.extras
+from psycopg2.extras import RealDictCursor
 import os
 import csv
 import io
 import urllib.parse
 from datetime import timedelta
-import urllib.parse
 import requests
+
+# ===== BREVO SDK =====
+from sib_api_v3_sdk import ApiClient, Configuration
+from sib_api_v3_sdk.api.transactional_emails_api import TransactionalEmailsApi
 
 # ================= CONFIG =================
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 ADMIN_WHATSAPP = os.getenv("ADMIN_WHATSAPP", "919659796217")
+
 SITE_URL = os.getenv(
     "SITE_URL",
     "https://jagadha-a-to-z-event-management.onrender.com"
+)
+
+ADMIN_EMAIL = os.getenv(
+    "ADMIN_EMAIL",
+    "Jagadhaeventplanner@gmail.com"
 )
 
 # ================= APP =================
@@ -66,6 +76,94 @@ def create_tables():
 with app.app_context():
     create_tables()
 
+# ================= EMAIL (BREVO) =================
+def send_email_via_brevo(
+    name, location, phone, event_date, service,
+    extras, notes, customer_email=None,
+    status="Pending", booking_id=None
+):
+    """Send email to ADMIN + CUSTOMER with Tamil"""
+
+    api_key = os.getenv("BREVO_API_KEY")
+    if not api_key:
+        app.logger.warning("⚠ BREVO API KEY missing")
+        return
+
+    configuration = Configuration()
+    configuration.api_key["api-key"] = api_key
+    api_instance = TransactionalEmailsApi(ApiClient(configuration))
+
+    to_list = [{"email": ADMIN_EMAIL}]
+    if customer_email:
+        to_list.append({"email": customer_email})
+
+    status_text = {
+        "Pending": "🎉 Booking Received",
+        "Confirmed": "✅ Booking Confirmed",
+        "Rejected": "❌ Booking Rejected"
+    }.get(status, "🎉 Booking Update")
+
+    tamil_status = {
+        "Pending": "உங்கள் முன்பதிவு பெறப்பட்டது",
+        "Confirmed": "உங்கள் முன்பதிவு உறுதிசெய்யப்பட்டது",
+        "Rejected": "மன்னிக்கவும் — உங்கள் முன்பதிவு நிராகரிக்கப்பட்டது"
+    }.get(status, "நிலையை புதுப்பித்தல்")
+
+    subject = f"{status_text} — JAGADHA A to Z"
+
+    html_content = f"""
+    <html><body style="font-family:Arial;background:#f7f7f7;padding:20px">
+      <div style="max-width:600px;margin:auto;background:#fff;border-radius:10px">
+        <div style="background:#f9c5d5;padding:16px;text-align:center">
+          <h2 style="color:#b01357">❤️ JAGADHA A to Z Event Management ❤️</h2>
+        </div>
+
+        <div style="padding:18px">
+          <h3>{status_text}</h3>
+          <p>Dear <b>{name}</b>,</p>
+
+          <table style="width:100%;font-size:14px">
+            <tr><td><b>Booking ID</b></td><td>#{booking_id}</td></tr>
+            <tr><td><b>📅 Event Date</b></td><td>{event_date}</td></tr>
+            <tr><td><b>🎈 Service</b></td><td>{service}</td></tr>
+            <tr><td><b>✨ Extras</b></td><td>{extras or '-'}</td></tr>
+            <tr><td><b>📍 Location</b></td><td>{location}</td></tr>
+            <tr><td><b>📞 Phone</b></td><td>{phone}</td></tr>
+          </table>
+
+          <p><b>Notes:</b> {notes or '-'}</p>
+
+          <hr>
+          <p><b>தமிழில்:</b> {tamil_status}</p>
+
+          <div style="text-align:center;margin-top:16px">
+            <a href="{SITE_URL}"
+               style="background:#b01357;color:white;padding:10px 18px;
+               border-radius:6px;text-decoration:none">
+               Visit Our Website
+            </a>
+          </div>
+        </div>
+
+        <div style="background:#fafafa;padding:10px;text-align:center;font-size:12px">
+          Automated message – JAGADHA A to Z
+        </div>
+      </div>
+    </body></html>
+    """
+
+    email = {
+        "sender": {"name": "JAGADHA A to Z", "email": ADMIN_EMAIL},
+        "to": to_list,
+        "subject": subject,
+        "htmlContent": html_content
+    }
+
+    try:
+        api_instance.send_transac_email(email)
+    except Exception as e:
+        app.logger.error(f"BREVO ERROR: {e}")
+
 # ================= WHATSAPP =================
 def whatsapp_customer(row):
     msg = f"""
@@ -75,8 +173,6 @@ Booking ID: {row['id']}
 Name: {row['name']}
 Event Date: {row['event_date']}
 Service: {row['service']}
-
-Thank you for choosing us 🙏
 """
     return f"https://wa.me/91{row['phone']}?text={urllib.parse.quote(msg)}"
 
@@ -93,50 +189,6 @@ Service: {row['service']}
     return f"https://wa.me/{ADMIN_WHATSAPP}?text={urllib.parse.quote(msg)}"
 
 app.jinja_env.globals.update(whatsapp_admin=whatsapp_admin)
-
-def send_brevo_email(to_email, subject, html_content):
-    api_key = os.environ.get("BREVO_API_KEY")
-    if not api_key:
-        print("⚠ BREVO API KEY missing")
-        return
-
-    url = "https://api.brevo.com/v3/smtp/email"
-    headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json"
-    }
-
-    payload = {
-        "sender": {
-            "name": "JAGADHA A to Z",
-            "email": "Jagadhaeventplanner@gmail.com"
-        },
-        "to": [{"email": to_email}],
-        "subject": subject,
-        "htmlContent": html_content
-    }
-
-    try:
-        r = requests.post(url, json=payload, headers=headers, timeout=10)
-        if r.status_code not in (200, 201):
-            print("BREVO ERROR:", r.status_code, r.text)
-    except Exception as e:
-        print("BREVO EXCEPTION:", e)
-
-def whatsapp_message(booking):
-    msg = f"""
-🎉 *Booking Confirmed* 🎉
-
-👤 Name: {booking['name']}
-🆔 Booking ID: #{booking['id']}
-🎈 Service: {booking['service']}
-📅 Event Date: {booking['event_date']}
-📍 Location: {booking['location']}
-
-🙏 Thank you for choosing *JAGADHA A to Z*
-"""
-    return urllib.parse.quote(msg)
 
 # ================= ROUTES =================
 @app.route("/")
@@ -166,33 +218,14 @@ def book():
             name, location, phone, customer_email,
             event_date, service, extras, notes
         ))
-
         booking_id = cur.fetchone()["id"]
         db.commit()
 
-        # 📧 ADMIN EMAIL
-        send_brevo_email(
-            to_email="Jagadhaeventplanner@gmail.com",
-            subject="📩 New Booking Received",
-            html_content=f"""
-            <h3>New Booking Received</h3>
-            <p><b>Name:</b> {name}</p>
-            <p><b>Service:</b> {service}</p>
-            <p><b>Phone:</b> {phone}</p>
-            """
+        send_email_via_brevo(
+            name, location, phone, event_date,
+            service, extras, notes,
+            customer_email, "Pending", booking_id
         )
-
-        # 📧 CUSTOMER EMAIL
-        if customer_email:
-            send_brevo_email(
-                to_email=customer_email,
-                subject="🎉 Booking Received — JAGADHA",
-                html_content=f"""
-                <h3>Thank you for your booking!</h3>
-                <p>Your Booking ID: <b>#{booking_id}</b></p>
-                <p>Our team will contact you shortly.</p>
-                """
-            )
 
         return redirect(url_for("booking_success", booking_id=booking_id))
 
@@ -214,8 +247,7 @@ def booking_success(booking_id):
         booking=row,
         wa={
             "customer_link": whatsapp_customer(row),
-            "admin_link": whatsapp_admin(row),
-            "qr_path": True
+            "admin_link": whatsapp_admin(row)
         }
     )
 
@@ -230,9 +262,7 @@ def login():
             session.permanent = True
             session["admin"] = True
             return redirect(url_for("admin_dashboard"))
-
         flash("Invalid credentials", "danger")
-
     return render_template("login.html")
 
 @app.route("/logout")
@@ -245,25 +275,6 @@ def admin_dashboard():
     if not session.get("admin"):
         return redirect(url_for("login"))
     return render_template("admin_dashboard.html")
-
-# ================= API =================
-@app.route("/api/bookings")
-def api_bookings():
-    if not session.get("admin"):
-        return jsonify({"error": "Unauthorized"}), 401
-
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM bookings ORDER BY created_at DESC")
-    rows = cur.fetchall()
-
-    return jsonify({
-        "total": len(rows),
-        "pending": sum(1 for r in rows if r["status"] == "Pending"),
-        "confirmed": sum(1 for r in rows if r["status"] == "Confirmed"),
-        "rejected": sum(1 for r in rows if r["status"] == "Rejected"),
-        "bookings": rows
-    })
 
 # ================= ACTIONS =================
 @app.route("/confirm/<int:booking_id>")
@@ -281,7 +292,6 @@ def confirm_booking(booking_id):
         flash("Booking not found", "danger")
         return redirect(url_for("admin_dashboard"))
 
-    # Update status + WhatsApp flag
     cur.execute("""
         UPDATE bookings
         SET status='Confirmed', whatsapp_sent=TRUE
@@ -289,27 +299,15 @@ def confirm_booking(booking_id):
     """, (booking_id,))
     db.commit()
 
-    # Re-fetch updated booking
-    cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
-    booking = cur.fetchone()
-
-    # 📧 EMAIL
-    if booking["customer_email"]:
-        send_brevo_email(
-            booking["customer_email"],
-            "✅ Booking Confirmed — JAGADHA",
-            f"""
-            <h3>Your booking is confirmed 🎉</h3>
-            <p><b>Booking ID:</b> #{booking_id}</p>
-            """
-        )
-
-    # 📲 WHATSAPP
-    phone = ''.join(filter(str.isdigit, booking["phone"]))
-    wa_link = f"https://wa.me/91{phone}?text={whatsapp_message(booking)}"
+    send_email_via_brevo(
+        booking["name"], booking["location"], booking["phone"],
+        booking["event_date"], booking["service"],
+        booking["extras"], booking["notes"],
+        booking["customer_email"], "Confirmed", booking_id
+    )
 
     flash("✅ Booking confirmed", "success")
-    return redirect(wa_link)
+    return redirect(url_for("admin_dashboard"))
 
 @app.route("/reject/<int:booking_id>")
 def reject_booking(booking_id):
@@ -317,37 +315,28 @@ def reject_booking(booking_id):
         return redirect(url_for("login"))
 
     db = get_db()
-    cur = db.cursor()
-    cur.execute("SELECT id FROM bookings WHERE id=%s", (booking_id,))
-    if not cur.fetchone():
+    cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
+    booking = cur.fetchone()
+
+    if not booking:
         flash("Booking not found!", "danger")
         return redirect(url_for("admin_dashboard"))
 
     cur.execute(
-        "UPDATE bookings SET status=%s WHERE id=%s",
-        ("Rejected", booking_id)
+        "UPDATE bookings SET status='Rejected' WHERE id=%s",
+        (booking_id,)
     )
     db.commit()
 
-    flash("❌ Booking Rejected!", "warning")
-    return redirect(url_for("admin_dashboard"))
+    send_email_via_brevo(
+        booking["name"], booking["location"], booking["phone"],
+        booking["event_date"], booking["service"],
+        booking["extras"], booking["notes"],
+        booking["customer_email"], "Rejected", booking_id
+    )
 
-@app.route("/delete/<int:booking_id>")
-def delete_booking(booking_id):
-    if not session.get("admin"):
-        return redirect(url_for("login"))
-
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("SELECT id FROM bookings WHERE id=%s", (booking_id,))
-    if not cur.fetchone():
-        flash("Booking not found!", "danger")
-        return redirect(url_for("admin_dashboard"))
-
-    cur.execute("DELETE FROM bookings WHERE id=%s", (booking_id,))
-    db.commit()
-
-    flash("🗑️ Booking deleted successfully!", "success")
+    flash("❌ Booking rejected!", "warning")
     return redirect(url_for("admin_dashboard"))
 
 # ================= CSV =================
@@ -361,14 +350,12 @@ def export_csv():
     cur.execute("SELECT * FROM bookings ORDER BY created_at DESC")
     rows = cur.fetchall()
 
-    if not rows:
-        return Response("", mimetype="text/csv")
-
     si = io.StringIO()
     cw = csv.writer(si)
-    cw.writerow(rows[0].keys())
-    for r in rows:
-        cw.writerow(r.values())
+    if rows:
+        cw.writerow(rows[0].keys())
+        for r in rows:
+            cw.writerow(r.values())
 
     return Response(
         si.getvalue(),
@@ -376,32 +363,34 @@ def export_csv():
         headers={"Content-Disposition": "attachment;filename=bookings.csv"}
     )
 
-@app.route("/mark_whatsapp_sent/<int:booking_id>", methods=["POST"])
-def mark_whatsapp_sent(booking_id):
+@app.route("/resend_email/<int:booking_id>")
+def resend_email(booking_id):
     if not session.get("admin"):
         return jsonify({"error": "Unauthorized"}), 401
 
     db = get_db()
-    cur = db.cursor()
-    cur.execute(
-        "UPDATE bookings SET whatsapp_sent=TRUE WHERE id=%s",
-        (booking_id,)
+    cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
+    b = cur.fetchone()
+
+    if not b:
+        return jsonify({"error": "Not found"}), 404
+
+    send_email_via_brevo(
+        b["name"], b["location"], b["phone"],
+        b["event_date"], b["service"],
+        b["extras"], b["notes"],
+        b["customer_email"], b["status"], b["id"]
     )
-    db.commit()
 
     return jsonify({"success": True})
 
-@app.route("/ping")
-def ping():
-    return "pong"
-
-# ================= RENDER COOKIE FIX =================
+# ================= RUN =================
 if os.getenv("RENDER"):
     app.config.update(
         SESSION_COOKIE_SECURE=True,
         SESSION_COOKIE_SAMESITE="None"
     )
 
-# ================= RUN =================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
