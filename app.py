@@ -41,11 +41,21 @@ app.permanent_session_lifetime = timedelta(days=7)
 # ================= DB =================
 def get_db():
     if "db" not in g:
-        g.db = psycopg2.connect(
-            os.environ["DATABASE_URL"],
-            cursor_factory=psycopg2.extras.RealDictCursor,
-            sslmode="require"
-        )
+        db_url = os.environ.get("DATABASE_URL")
+
+        if not db_url:
+            return None
+
+        try:
+            g.db = psycopg2.connect(
+                db_url,
+                cursor_factory=psycopg2.extras.RealDictCursor,
+                sslmode="require"
+            )
+        except Exception as e:
+            app.logger.error(f"DB connection failed: {e}")
+            return None
+
     return g.db
 
 @app.teardown_appcontext
@@ -56,6 +66,8 @@ def close_db(_):
 
 def create_tables():
     db = get_db()
+    if not db:
+        return
     cur = db.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS bookings (
@@ -75,9 +87,11 @@ def create_tables():
     """)
     db.commit()
 
+
 def ensure_whatsapp_column():
-    """Ensure 'whatsapp_sent' column exists in bookings table."""
     db = get_db()
+    if not db:
+        return
     cur = db.cursor()
     cur.execute("""
         ALTER TABLE bookings
@@ -85,9 +99,11 @@ def ensure_whatsapp_column():
     """)
     db.commit()
 
-with app.app_context():
+
+@app.before_first_request
+def init_db():
     create_tables()
-    ensure_whatsapp_column()  # <-- Fix for UndefinedColumn error
+    ensure_whatsapp_column()
 
 # ================= EMAIL (BREVO) =================
 def send_email_via_brevo(
@@ -452,6 +468,10 @@ def logout():
     flash("You have been logged out successfully.", "info")
     return redirect(url_for("login"))
 
+@app.route("/health")
+def health():
+    return {"status": "ok"}, 200    
+
 # ================= RUN =================
 if __name__ == "__main__":
     if os.getenv("RENDER"):
@@ -460,3 +480,4 @@ if __name__ == "__main__":
             SESSION_COOKIE_SAMESITE="None"
         )
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
